@@ -86,6 +86,12 @@
                 android:layout_alignBaseline="@id/last_updated_textview"
                 android:layout_marginEnd="4dp" />
         </RelativeLayout>
+
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#FFFFFF"
+            android:layout_marginTop="4dp" />
     </LinearLayout>
 
     <ProgressBar
