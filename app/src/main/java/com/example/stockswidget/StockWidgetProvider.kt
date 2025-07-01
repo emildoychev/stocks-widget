@@ -60,7 +60,6 @@ class StockWidgetProvider : AppWidgetProvider() {
                 R.id.buy_price_textview_stock2, R.id.stock_price_textview_stock2,
                 EAM_3AMD_BUY_PRICE, EAM_3AMD_AMOUNT,
                 "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3A3AMD&fields=close",
-                priceFormat = "€%.3f" // EAM_3AMD uses 3 decimal places
             ),
             StockInfo(
                 R.id.stock_label_textview_stock3, R.id.last_updated_textview_stock3, R.id.profit_loss_textview_stock3,
