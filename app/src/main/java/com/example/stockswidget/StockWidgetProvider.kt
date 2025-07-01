@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.view.View
 import android.widget.RemoteViews
 import kotlinx.coroutines.Dispatchers
@@ -102,11 +103,17 @@ internal fun updateAppWidget(
     // Set Buy Price
     views.setTextViewText(R.id.buy_price_textview, String.format(Locale.US, "€%.4f", StockWidgetProvider.MIL_S3CO_BUY_PRICE))
 
-    // Set Current Stock Price
+    // Set Current Stock Price and Color
     if (price.isNaN()) {
         views.setTextViewText(R.id.stock_price_textview, "C: N/A")
+        views.setTextColor(R.id.stock_price_textview, Color.WHITE) // Default color for N/A
     } else {
         views.setTextViewText(R.id.stock_price_textview, String.format(Locale.US, "€%.4f", price))
+        when {
+            price > StockWidgetProvider.MIL_S3CO_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview, Color.GREEN)
+            price < StockWidgetProvider.MIL_S3CO_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview, Color.RED)
+            else -> views.setTextColor(R.id.stock_price_textview, Color.WHITE) // Equal or default
+        }
     }
     views.setTextViewText(R.id.last_updated_textview, updateTime)
 
