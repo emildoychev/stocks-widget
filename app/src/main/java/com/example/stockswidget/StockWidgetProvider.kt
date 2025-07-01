@@ -84,6 +84,10 @@ class StockWidgetProvider : AppWidgetProvider() {
         views.setViewVisibility(R.id.buy_price_textview_stock3, View.GONE)
         views.setViewVisibility(R.id.stock_price_textview_stock3, View.GONE)
 
+        // Hide dividers
+        views.setViewVisibility(R.id.divider_line, View.GONE)
+        views.setViewVisibility(R.id.divider_line_2, View.GONE)
+
         appWidgetManager.updateAppWidget(appWidgetId, views)
 
         GlobalScope.launch(Dispatchers.IO) {
@@ -142,6 +146,10 @@ internal fun updateAppWidget(
     val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
 
     views.setViewVisibility(R.id.loading_indicator, View.GONE)
+
+    // Show dividers
+    views.setViewVisibility(R.id.divider_line, View.VISIBLE)
+    views.setViewVisibility(R.id.divider_line_2, View.VISIBLE)
 
     // --- Stock 1 (MIL | S3CO) --- 
     views.setViewVisibility(R.id.stock_label_textview, View.VISIBLE)
