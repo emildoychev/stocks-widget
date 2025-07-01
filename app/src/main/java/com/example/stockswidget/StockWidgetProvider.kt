@@ -180,14 +180,14 @@ internal fun updateAppWidget(
     views.setViewVisibility(R.id.buy_price_textview_stock2, View.VISIBLE)
     views.setViewVisibility(R.id.stock_price_textview_stock2, View.VISIBLE)
 
-    views.setTextViewText(R.id.buy_price_textview_stock2, String.format(Locale.US, "€%.3f", StockWidgetProvider.EAM_3AMD_BUY_PRICE))
+    views.setTextViewText(R.id.buy_price_textview_stock2, String.format(Locale.US, "€%.4f", StockWidgetProvider.EAM_3AMD_BUY_PRICE))
     if (price2.isNaN()) {
         views.setTextViewText(R.id.stock_price_textview_stock2, "N/A")
         views.setTextColor(R.id.stock_price_textview_stock2, Color.WHITE)
         views.setTextViewText(R.id.profit_loss_textview_stock2, "N/A")
         views.setTextColor(R.id.profit_loss_textview_stock2, Color.WHITE)
     } else {
-        views.setTextViewText(R.id.stock_price_textview_stock2, String.format(Locale.US, "€%.3f", price2))
+        views.setTextViewText(R.id.stock_price_textview_stock2, String.format(Locale.US, "€%.4f", price2))
         when {
             price2 > StockWidgetProvider.EAM_3AMD_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview_stock2, Color.GREEN)
             price2 < StockWidgetProvider.EAM_3AMD_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview_stock2, Color.RED)

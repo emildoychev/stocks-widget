@@ -38,7 +38,7 @@
                     android:layout_height="wrap_content"
                     android:text="MIL | S3CO"
                     android:textColor="#FFFFFF"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true" />
@@ -120,7 +120,7 @@
                     android:layout_height="wrap_content"
                     android:text="EAM | 3AMD"
                     android:textColor="#FFFFFF"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true" />
@@ -202,7 +202,7 @@
                     android:layout_height="wrap_content"
                     android:text="XET | COMS"
                     android:textColor="#FFFFFF"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true" />
