@@ -22,7 +22,8 @@ class StockWidgetProvider : AppWidgetProvider() {
 
     companion object {
         internal const val ACTION_MANUAL_REFRESH = "com.example.stockswidget.ACTION_MANUAL_REFRESH"
-        internal const val MIL_S3CO_BUY_PRICE = 0.0847 // Changed from private to internal
+        internal const val MIL_S3CO_BUY_PRICE = 0.0847
+        internal const val MIL_S3CO_AMOUNT = 52356
     }
 
     override fun onUpdate(
@@ -58,8 +59,9 @@ class StockWidgetProvider : AppWidgetProvider() {
         views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
         views.setViewVisibility(R.id.stock_label_textview, View.GONE)
         views.setViewVisibility(R.id.last_updated_textview, View.GONE)
-        views.setViewVisibility(R.id.buy_price_textview, View.GONE) // Hide buy price during load
-        views.setViewVisibility(R.id.stock_price_textview, View.GONE) // Hide current price during load
+        views.setViewVisibility(R.id.profit_loss_textview, View.GONE) // Hide profit/loss during load
+        views.setViewVisibility(R.id.buy_price_textview, View.GONE) 
+        views.setViewVisibility(R.id.stock_price_textview, View.GONE) 
         appWidgetManager.updateAppWidget(appWidgetId, views)
 
         GlobalScope.launch(Dispatchers.IO) {
@@ -97,22 +99,34 @@ internal fun updateAppWidget(
     views.setViewVisibility(R.id.loading_indicator, View.GONE)
     views.setViewVisibility(R.id.stock_label_textview, View.VISIBLE)
     views.setViewVisibility(R.id.last_updated_textview, View.VISIBLE)
-    views.setViewVisibility(R.id.buy_price_textview, View.VISIBLE) // Show buy price
-    views.setViewVisibility(R.id.stock_price_textview, View.VISIBLE) // Show current price
+    views.setViewVisibility(R.id.profit_loss_textview, View.VISIBLE) // Show profit/loss
+    views.setViewVisibility(R.id.buy_price_textview, View.VISIBLE) 
+    views.setViewVisibility(R.id.stock_price_textview, View.VISIBLE) 
 
     // Set Buy Price
     views.setTextViewText(R.id.buy_price_textview, String.format(Locale.US, "€%.4f", StockWidgetProvider.MIL_S3CO_BUY_PRICE))
 
     // Set Current Stock Price and Color
     if (price.isNaN()) {
-        views.setTextViewText(R.id.stock_price_textview, "C: N/A")
-        views.setTextColor(R.id.stock_price_textview, Color.WHITE) // Default color for N/A
+        views.setTextViewText(R.id.stock_price_textview, "N/A") // Removed "C: " prefix
+        views.setTextColor(R.id.stock_price_textview, Color.WHITE)
+        views.setTextViewText(R.id.profit_loss_textview, "N/A")
+        views.setTextColor(R.id.profit_loss_textview, Color.WHITE)
     } else {
         views.setTextViewText(R.id.stock_price_textview, String.format(Locale.US, "€%.4f", price))
         when {
             price > StockWidgetProvider.MIL_S3CO_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview, Color.GREEN)
             price < StockWidgetProvider.MIL_S3CO_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview, Color.RED)
-            else -> views.setTextColor(R.id.stock_price_textview, Color.WHITE) // Equal or default
+            else -> views.setTextColor(R.id.stock_price_textview, Color.WHITE)
+        }
+
+        // Calculate and Display Profit/Loss
+        val profitOrLoss = StockWidgetProvider.MIL_S3CO_AMOUNT * (price - StockWidgetProvider.MIL_S3CO_BUY_PRICE)
+        views.setTextViewText(R.id.profit_loss_textview, String.format(Locale.US, "€%.2f", profitOrLoss))
+        when {
+            profitOrLoss > 0 -> views.setTextColor(R.id.profit_loss_textview, Color.GREEN)
+            profitOrLoss < 0 -> views.setTextColor(R.id.profit_loss_textview, Color.RED)
+            else -> views.setTextColor(R.id.profit_loss_textview, Color.WHITE)
         }
     }
     views.setTextViewText(R.id.last_updated_textview, updateTime)
