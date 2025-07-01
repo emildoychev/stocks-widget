@@ -122,7 +122,7 @@ internal fun updateAppWidget(
 
         // Calculate and Display Profit/Loss
         val profitOrLoss = StockWidgetProvider.MIL_S3CO_AMOUNT * (price - StockWidgetProvider.MIL_S3CO_BUY_PRICE)
-        views.setTextViewText(R.id.profit_loss_textview, String.format(Locale.US, "€%.2f", profitOrLoss))
+        views.setTextViewText(R.id.profit_loss_textview, String.format(Locale.US, "€%,.2f", profitOrLoss))
         when {
             profitOrLoss > 0 -> views.setTextColor(R.id.profit_loss_textview, Color.GREEN)
             profitOrLoss < 0 -> views.setTextColor(R.id.profit_loss_textview, Color.RED)
