@@ -13,6 +13,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class StockWidgetProvider : AppWidgetProvider() {
 
@@ -25,14 +28,13 @@ class StockWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        // There may be multiple widgets active, so update all of them
         for (appWidgetId in appWidgetIds) {
             fetchStockData(context, appWidgetManager, appWidgetId)
         }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent) // Important to call super
+        super.onReceive(context, intent)
         if (ACTION_MANUAL_REFRESH == intent.action) {
             val appWidgetId = intent.getIntExtra(
                 AppWidgetManager.EXTRA_APPWIDGET_ID,
@@ -50,62 +52,57 @@ class StockWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
-        // Show loading indicator
         val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
         views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
         views.setViewVisibility(R.id.stock_price_textview, View.GONE)
-        views.setViewVisibility(R.id.stock_label_textview, View.GONE) // Hide label during load
+        views.setViewVisibility(R.id.stock_label_textview, View.GONE)
+        views.setViewVisibility(R.id.last_updated_textview, View.GONE) // Hide last updated time during load
         appWidgetManager.updateAppWidget(appWidgetId, views)
 
         GlobalScope.launch(Dispatchers.IO) {
+            var closePrice = Double.NaN
+            val currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
             try {
                 val url = URL("https://scanner.tradingview.com/symbol?symbol=MIL%3AS3CO&fields=close")
                 val jsonString = url.readText()
                 val jsonObject = JSONObject(jsonString)
-                val closePrice = jsonObject.getDouble("close")
-
-                withContext(Dispatchers.Main) {
-                    updateAppWidget(context, appWidgetManager, appWidgetId, closePrice)
-                }
+                closePrice = jsonObject.getDouble("close")
             } catch (e: Exception) {
-                // Handle error, e.g., show a default error message in the widget
                 e.printStackTrace()
+            } finally {
                 withContext(Dispatchers.Main) {
-                    updateAppWidget(context, appWidgetManager, appWidgetId, Double.NaN) // Or some error indicator
+                    updateAppWidget(context, appWidgetManager, appWidgetId, closePrice, currentTime)
                 }
             }
         }
     }
 
-    override fun onEnabled(context: Context) {
-        // Enter relevant functionality for when the first widget is created
-    }
+    override fun onEnabled(context: Context) {}
 
-    override fun onDisabled(context: Context) {
-        // Enter relevant functionality for when the last widget is disabled
-    }
+    override fun onDisabled(context: Context) {}
 }
 
 internal fun updateAppWidget(
     context: Context,
     appWidgetManager: AppWidgetManager,
     appWidgetId: Int,
-    price: Double
+    price: Double,
+    updateTime: String
 ) {
     val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
 
-    // Hide loading indicator, show price text and label
     views.setViewVisibility(R.id.loading_indicator, View.GONE)
     views.setViewVisibility(R.id.stock_price_textview, View.VISIBLE)
-    views.setViewVisibility(R.id.stock_label_textview, View.VISIBLE) // Show label with price
+    views.setViewVisibility(R.id.stock_label_textview, View.VISIBLE)
+    views.setViewVisibility(R.id.last_updated_textview, View.VISIBLE) // Show last updated time
 
     if (price.isNaN()) {
         views.setTextViewText(R.id.stock_price_textview, "N/A")
     } else {
-        views.setTextViewText(R.id.stock_price_textview, String.format("€%.4f", price))
+        views.setTextViewText(R.id.stock_price_textview, String.format(Locale.US, "€%.4f", price))
     }
+    views.setTextViewText(R.id.last_updated_textview, updateTime)
 
-    // Setup for refresh button
     val intent = Intent(context, StockWidgetProvider::class.java).apply {
         action = StockWidgetProvider.ACTION_MANUAL_REFRESH
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -113,11 +110,10 @@ internal fun updateAppWidget(
 
     val pendingIntent = PendingIntent.getBroadcast(
         context,
-        appWidgetId, // Use appWidgetId as requestCode to ensure PIs for different widget instances are unique
+        appWidgetId,
         intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     views.setOnClickPendingIntent(R.id.refresh_button, pendingIntent)
-    // Instruct the widget manager to update the widget
     appWidgetManager.updateAppWidget(appWidgetId, views)
 }
