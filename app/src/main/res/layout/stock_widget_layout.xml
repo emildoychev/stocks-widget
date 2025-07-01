@@ -40,18 +40,34 @@
             android:textSize="10sp" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/stock_price_textview"
+    <LinearLayout
+        android:id="@+id/price_details_layout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:orientation="horizontal"
         android:layout_alignParentEnd="true"
         android:layout_centerVertical="true"
         android:layout_marginStart="8dp"
         android:layout_toEndOf="@id/stock_info_layout"
-        android:gravity="end"
-        android:text="Loading..."
-        android:textColor="#FFFFFF"
-        android:textSize="10sp" />
+        android:gravity="end">
+
+        <TextView
+            android:id="@+id/buy_price_textview"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Loading..."
+            android:textColor="#FFFFFF"
+            android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/stock_price_textview"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="Loading..."
+            android:textColor="#FFFFFF"
+            android:textSize="10sp" />
+    </LinearLayout>
 
     <ProgressBar
         android:id="@+id/loading_indicator"

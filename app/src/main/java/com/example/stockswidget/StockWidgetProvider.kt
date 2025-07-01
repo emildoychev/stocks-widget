@@ -21,6 +21,7 @@ class StockWidgetProvider : AppWidgetProvider() {
 
     companion object {
         internal const val ACTION_MANUAL_REFRESH = "com.example.stockswidget.ACTION_MANUAL_REFRESH"
+        internal const val MIL_S3CO_BUY_PRICE = 0.0847 // Changed from private to internal
     }
 
     override fun onUpdate(
@@ -54,9 +55,10 @@ class StockWidgetProvider : AppWidgetProvider() {
     ) {
         val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
         views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
-        views.setViewVisibility(R.id.stock_price_textview, View.GONE)
         views.setViewVisibility(R.id.stock_label_textview, View.GONE)
-        views.setViewVisibility(R.id.last_updated_textview, View.GONE) // Hide last updated time during load
+        views.setViewVisibility(R.id.last_updated_textview, View.GONE)
+        views.setViewVisibility(R.id.buy_price_textview, View.GONE) // Hide buy price during load
+        views.setViewVisibility(R.id.stock_price_textview, View.GONE) // Hide current price during load
         appWidgetManager.updateAppWidget(appWidgetId, views)
 
         GlobalScope.launch(Dispatchers.IO) {
@@ -92,12 +94,17 @@ internal fun updateAppWidget(
     val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
 
     views.setViewVisibility(R.id.loading_indicator, View.GONE)
-    views.setViewVisibility(R.id.stock_price_textview, View.VISIBLE)
     views.setViewVisibility(R.id.stock_label_textview, View.VISIBLE)
-    views.setViewVisibility(R.id.last_updated_textview, View.VISIBLE) // Show last updated time
+    views.setViewVisibility(R.id.last_updated_textview, View.VISIBLE)
+    views.setViewVisibility(R.id.buy_price_textview, View.VISIBLE) // Show buy price
+    views.setViewVisibility(R.id.stock_price_textview, View.VISIBLE) // Show current price
 
+    // Set Buy Price
+    views.setTextViewText(R.id.buy_price_textview, String.format(Locale.US, "€%.4f", StockWidgetProvider.MIL_S3CO_BUY_PRICE))
+
+    // Set Current Stock Price
     if (price.isNaN()) {
-        views.setTextViewText(R.id.stock_price_textview, "N/A")
+        views.setTextViewText(R.id.stock_price_textview, "C: N/A")
     } else {
         views.setTextViewText(R.id.stock_price_textview, String.format(Locale.US, "€%.4f", price))
     }
