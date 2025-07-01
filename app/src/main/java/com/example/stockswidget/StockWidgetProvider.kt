@@ -24,6 +24,10 @@ class StockWidgetProvider : AppWidgetProvider() {
         internal const val ACTION_MANUAL_REFRESH = "com.example.stockswidget.ACTION_MANUAL_REFRESH"
         internal const val MIL_S3CO_BUY_PRICE = 0.0847
         internal const val MIL_S3CO_AMOUNT = 52356
+        internal const val EAM_3AMD_BUY_PRICE = 0.538
+        internal const val EAM_3AMD_AMOUNT = 27881
+        internal const val XET_COMS_BUY_PRICE = 2.4290 // Corrected buy price
+        internal const val XET_COMS_AMOUNT = 4117
     }
 
     override fun onUpdate(
@@ -56,28 +60,67 @@ class StockWidgetProvider : AppWidgetProvider() {
         appWidgetId: Int
     ) {
         val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
+        // Show loading indicator and hide all stock details
         views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
+
+        // Hide Stock 1 views
         views.setViewVisibility(R.id.stock_label_textview, View.GONE)
         views.setViewVisibility(R.id.last_updated_textview, View.GONE)
-        views.setViewVisibility(R.id.profit_loss_textview, View.GONE) // Hide profit/loss during load
-        views.setViewVisibility(R.id.buy_price_textview, View.GONE) 
-        views.setViewVisibility(R.id.stock_price_textview, View.GONE) 
+        views.setViewVisibility(R.id.profit_loss_textview, View.GONE)
+        views.setViewVisibility(R.id.buy_price_textview, View.GONE)
+        views.setViewVisibility(R.id.stock_price_textview, View.GONE)
+
+        // Hide Stock 2 views
+        views.setViewVisibility(R.id.stock_label_textview_stock2, View.GONE)
+        views.setViewVisibility(R.id.last_updated_textview_stock2, View.GONE)
+        views.setViewVisibility(R.id.profit_loss_textview_stock2, View.GONE)
+        views.setViewVisibility(R.id.buy_price_textview_stock2, View.GONE)
+        views.setViewVisibility(R.id.stock_price_textview_stock2, View.GONE)
+
+        // Hide Stock 3 views
+        views.setViewVisibility(R.id.stock_label_textview_stock3, View.GONE)
+        views.setViewVisibility(R.id.last_updated_textview_stock3, View.GONE)
+        views.setViewVisibility(R.id.profit_loss_textview_stock3, View.GONE)
+        views.setViewVisibility(R.id.buy_price_textview_stock3, View.GONE)
+        views.setViewVisibility(R.id.stock_price_textview_stock3, View.GONE)
+
         appWidgetManager.updateAppWidget(appWidgetId, views)
 
         GlobalScope.launch(Dispatchers.IO) {
-            var closePrice = Double.NaN
+            var closePrice1 = Double.NaN
+            var closePrice2 = Double.NaN
+            var closePrice3 = Double.NaN
             val currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+
             try {
-                val url = URL("https://scanner.tradingview.com/symbol?symbol=MIL%3AS3CO&fields=close")
-                val jsonString = url.readText()
-                val jsonObject = JSONObject(jsonString)
-                closePrice = jsonObject.getDouble("close")
+                val url1 = URL("https://scanner.tradingview.com/symbol?symbol=MIL%3AS3CO&fields=close")
+                val jsonString1 = url1.readText()
+                val jsonObject1 = JSONObject(jsonString1)
+                closePrice1 = jsonObject1.getDouble("close")
             } catch (e: Exception) {
                 e.printStackTrace()
-            } finally {
-                withContext(Dispatchers.Main) {
-                    updateAppWidget(context, appWidgetManager, appWidgetId, closePrice, currentTime)
-                }
+            }
+
+            try {
+                val url2 = URL("https://scanner.tradingview.com/symbol?symbol=EURONEXT%3A3AMD&fields=close")
+                val jsonString2 = url2.readText()
+                val jsonObject2 = JSONObject(jsonString2)
+                closePrice2 = jsonObject2.getDouble("close")
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            try {
+                val url3 = URL("https://scanner.tradingview.com/symbol?symbol=XETR%3ACOMS&fields=close")
+                val jsonString3 = url3.readText()
+                val jsonObject3 = JSONObject(jsonString3)
+                closePrice3 = jsonObject3.getDouble("close")
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            withContext(Dispatchers.Main) {
+                updateAppWidget(context, appWidgetManager, appWidgetId, closePrice1, closePrice2, closePrice3, currentTime)
             }
         }
     }
@@ -91,51 +134,111 @@ internal fun updateAppWidget(
     context: Context,
     appWidgetManager: AppWidgetManager,
     appWidgetId: Int,
-    price: Double,
+    price1: Double,
+    price2: Double,
+    price3: Double,
     updateTime: String
 ) {
     val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
 
     views.setViewVisibility(R.id.loading_indicator, View.GONE)
+
+    // --- Stock 1 (MIL | S3CO) --- 
     views.setViewVisibility(R.id.stock_label_textview, View.VISIBLE)
     views.setViewVisibility(R.id.last_updated_textview, View.VISIBLE)
-    views.setViewVisibility(R.id.profit_loss_textview, View.VISIBLE) // Show profit/loss
-    views.setViewVisibility(R.id.buy_price_textview, View.VISIBLE) 
-    views.setViewVisibility(R.id.stock_price_textview, View.VISIBLE) 
+    views.setViewVisibility(R.id.profit_loss_textview, View.VISIBLE)
+    views.setViewVisibility(R.id.buy_price_textview, View.VISIBLE)
+    views.setViewVisibility(R.id.stock_price_textview, View.VISIBLE)
 
-    // Set Buy Price
     views.setTextViewText(R.id.buy_price_textview, String.format(Locale.US, "€%.4f", StockWidgetProvider.MIL_S3CO_BUY_PRICE))
-
-    // Set Current Stock Price and Color
-    if (price.isNaN()) {
-        views.setTextViewText(R.id.stock_price_textview, "N/A") // Removed "C: " prefix
+    if (price1.isNaN()) {
+        views.setTextViewText(R.id.stock_price_textview, "N/A")
         views.setTextColor(R.id.stock_price_textview, Color.WHITE)
         views.setTextViewText(R.id.profit_loss_textview, "N/A")
         views.setTextColor(R.id.profit_loss_textview, Color.WHITE)
     } else {
-        views.setTextViewText(R.id.stock_price_textview, String.format(Locale.US, "€%.4f", price))
+        views.setTextViewText(R.id.stock_price_textview, String.format(Locale.US, "€%.4f", price1))
         when {
-            price > StockWidgetProvider.MIL_S3CO_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview, Color.GREEN)
-            price < StockWidgetProvider.MIL_S3CO_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview, Color.RED)
+            price1 > StockWidgetProvider.MIL_S3CO_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview, Color.GREEN)
+            price1 < StockWidgetProvider.MIL_S3CO_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview, Color.RED)
             else -> views.setTextColor(R.id.stock_price_textview, Color.WHITE)
         }
-
-        // Calculate and Display Profit/Loss
-        val profitOrLoss = StockWidgetProvider.MIL_S3CO_AMOUNT * (price - StockWidgetProvider.MIL_S3CO_BUY_PRICE)
-        views.setTextViewText(R.id.profit_loss_textview, String.format(Locale.US, "€%,.2f", profitOrLoss))
+        val profitOrLoss1 = StockWidgetProvider.MIL_S3CO_AMOUNT * (price1 - StockWidgetProvider.MIL_S3CO_BUY_PRICE)
+        views.setTextViewText(R.id.profit_loss_textview, String.format(Locale.US, "€%,.2f", profitOrLoss1))
         when {
-            profitOrLoss > 0 -> views.setTextColor(R.id.profit_loss_textview, Color.GREEN)
-            profitOrLoss < 0 -> views.setTextColor(R.id.profit_loss_textview, Color.RED)
+            profitOrLoss1 > 0 -> views.setTextColor(R.id.profit_loss_textview, Color.GREEN)
+            profitOrLoss1 < 0 -> views.setTextColor(R.id.profit_loss_textview, Color.RED)
             else -> views.setTextColor(R.id.profit_loss_textview, Color.WHITE)
         }
     }
     views.setTextViewText(R.id.last_updated_textview, updateTime)
 
+    // --- Stock 2 (EAM | 3AMD) --- 
+    views.setViewVisibility(R.id.stock_label_textview_stock2, View.VISIBLE)
+    views.setViewVisibility(R.id.last_updated_textview_stock2, View.VISIBLE)
+    views.setViewVisibility(R.id.profit_loss_textview_stock2, View.VISIBLE)
+    views.setViewVisibility(R.id.buy_price_textview_stock2, View.VISIBLE)
+    views.setViewVisibility(R.id.stock_price_textview_stock2, View.VISIBLE)
+
+    views.setTextViewText(R.id.buy_price_textview_stock2, String.format(Locale.US, "€%.3f", StockWidgetProvider.EAM_3AMD_BUY_PRICE))
+    if (price2.isNaN()) {
+        views.setTextViewText(R.id.stock_price_textview_stock2, "N/A")
+        views.setTextColor(R.id.stock_price_textview_stock2, Color.WHITE)
+        views.setTextViewText(R.id.profit_loss_textview_stock2, "N/A")
+        views.setTextColor(R.id.profit_loss_textview_stock2, Color.WHITE)
+    } else {
+        views.setTextViewText(R.id.stock_price_textview_stock2, String.format(Locale.US, "€%.3f", price2))
+        when {
+            price2 > StockWidgetProvider.EAM_3AMD_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview_stock2, Color.GREEN)
+            price2 < StockWidgetProvider.EAM_3AMD_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview_stock2, Color.RED)
+            else -> views.setTextColor(R.id.stock_price_textview_stock2, Color.WHITE)
+        }
+        val profitOrLoss2 = StockWidgetProvider.EAM_3AMD_AMOUNT * (price2 - StockWidgetProvider.EAM_3AMD_BUY_PRICE)
+        views.setTextViewText(R.id.profit_loss_textview_stock2, String.format(Locale.US, "€%,.2f", profitOrLoss2))
+        when {
+            profitOrLoss2 > 0 -> views.setTextColor(R.id.profit_loss_textview_stock2, Color.GREEN)
+            profitOrLoss2 < 0 -> views.setTextColor(R.id.profit_loss_textview_stock2, Color.RED)
+            else -> views.setTextColor(R.id.profit_loss_textview_stock2, Color.WHITE)
+        }
+    }
+    views.setTextViewText(R.id.last_updated_textview_stock2, updateTime)
+
+    // --- Stock 3 (XET | COMS) --- 
+    views.setViewVisibility(R.id.stock_label_textview_stock3, View.VISIBLE)
+    views.setViewVisibility(R.id.last_updated_textview_stock3, View.VISIBLE)
+    views.setViewVisibility(R.id.profit_loss_textview_stock3, View.VISIBLE)
+    views.setViewVisibility(R.id.buy_price_textview_stock3, View.VISIBLE)
+    views.setViewVisibility(R.id.stock_price_textview_stock3, View.VISIBLE)
+
+    views.setTextViewText(R.id.buy_price_textview_stock3, String.format(Locale.US, "€%.4f", StockWidgetProvider.XET_COMS_BUY_PRICE))
+    if (price3.isNaN()) {
+        views.setTextViewText(R.id.stock_price_textview_stock3, "N/A")
+        views.setTextColor(R.id.stock_price_textview_stock3, Color.WHITE)
+        views.setTextViewText(R.id.profit_loss_textview_stock3, "N/A")
+        views.setTextColor(R.id.profit_loss_textview_stock3, Color.WHITE)
+    } else {
+        views.setTextViewText(R.id.stock_price_textview_stock3, String.format(Locale.US, "€%.4f", price3))
+        when {
+            price3 > StockWidgetProvider.XET_COMS_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview_stock3, Color.GREEN)
+            price3 < StockWidgetProvider.XET_COMS_BUY_PRICE -> views.setTextColor(R.id.stock_price_textview_stock3, Color.RED)
+            else -> views.setTextColor(R.id.stock_price_textview_stock3, Color.WHITE)
+        }
+        val profitOrLoss3 = StockWidgetProvider.XET_COMS_AMOUNT * (price3 - StockWidgetProvider.XET_COMS_BUY_PRICE)
+        views.setTextViewText(R.id.profit_loss_textview_stock3, String.format(Locale.US, "€%,.2f", profitOrLoss3))
+        when {
+            profitOrLoss3 > 0 -> views.setTextColor(R.id.profit_loss_textview_stock3, Color.GREEN)
+            profitOrLoss3 < 0 -> views.setTextColor(R.id.profit_loss_textview_stock3, Color.RED)
+            else -> views.setTextColor(R.id.profit_loss_textview_stock3, Color.WHITE)
+        }
+    }
+    views.setTextViewText(R.id.last_updated_textview_stock3, updateTime)
+
+
+    // Refresh button intent
     val intent = Intent(context, StockWidgetProvider::class.java).apply {
         action = StockWidgetProvider.ACTION_MANUAL_REFRESH
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
     }
-
     val pendingIntent = PendingIntent.getBroadcast(
         context,
         appWidgetId,
@@ -143,5 +246,6 @@ internal fun updateAppWidget(
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     views.setOnClickPendingIntent(R.id.refresh_button, pendingIntent)
+
     appWidgetManager.updateAppWidget(appWidgetId, views)
 }
