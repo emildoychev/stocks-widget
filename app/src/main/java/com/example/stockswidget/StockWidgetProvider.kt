@@ -54,6 +54,7 @@ class StockWidgetProvider : AppWidgetProvider() {
         val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
         views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
         views.setViewVisibility(R.id.stock_price_textview, View.GONE)
+        views.setViewVisibility(R.id.stock_label_textview, View.GONE) // Hide label during load
         appWidgetManager.updateAppWidget(appWidgetId, views)
 
         GlobalScope.launch(Dispatchers.IO) {
@@ -93,9 +94,10 @@ internal fun updateAppWidget(
 ) {
     val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
 
-    // Hide loading indicator, show price text
+    // Hide loading indicator, show price text and label
     views.setViewVisibility(R.id.loading_indicator, View.GONE)
     views.setViewVisibility(R.id.stock_price_textview, View.VISIBLE)
+    views.setViewVisibility(R.id.stock_label_textview, View.VISIBLE) // Show label with price
 
     if (price.isNaN()) {
         views.setTextViewText(R.id.stock_price_textview, "N/A")
