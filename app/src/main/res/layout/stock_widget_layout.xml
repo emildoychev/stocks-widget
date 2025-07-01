@@ -6,13 +6,14 @@
 
     <ImageButton
         android:id="@+id/refresh_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
         android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
         android:src="@android:drawable/ic_popup_sync"
         android:contentDescription="Refresh"
-        android:background="@android:color/transparent" />
+        android:background="@android:color/transparent"
+        android:scaleType="fitCenter" />
 
     <RelativeLayout
         android:id="@+id/content_container"
