@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">StocksWidget</string>
+    <string name="stock_widget_description">A widget to display stock information.</string>
 </resources>
