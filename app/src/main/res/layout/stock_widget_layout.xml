@@ -26,7 +26,7 @@
             android:id="@+id/stock_label_textview"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="MIL | S3CO"
+            android:text="MIL|S3CO"
             android:textColor="#FFFFFF"
             android:textSize="12sp"
             android:textStyle="bold" />
@@ -37,7 +37,7 @@
             android:layout_height="wrap_content"
             android:text="--:--"
             android:textColor="#CCCCCC"
-            android:textSize="10sp" />
+            android:textSize="9sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -72,7 +72,7 @@
                 android:layout_height="wrap_content"
                 android:text="Loading..."
                 android:textColor="#CCCCCC"
-                android:textSize="10sp" />
+                android:textSize="9sp" />
 
             <TextView
                 android:id="@+id/stock_price_textview"
@@ -81,7 +81,7 @@
                 android:layout_marginStart="4dp"
                 android:text="Loading..."
                 android:textColor="#FFFFFF"
-                android:textSize="10sp" />
+                android:textSize="9sp" />
         </LinearLayout>
     </LinearLayout>
 
