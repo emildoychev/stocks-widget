@@ -58,8 +58,18 @@ class StockWidgetProvider : AppWidgetProvider() {
         internal const val XET_COMS_AMOUNT = 4117.0
 
         // Stock 4: ABN
-        internal const val ABN_BUY_PRICE = 183.020
-        internal const val ABN_AMOUNT = 0.5464
+        internal const val ABN_BUY_PRICE1 = 183.020
+        internal const val ABN_AMOUNT1 = 0.5464
+        internal const val ABN_BUY_PRICE2 = 175.070
+        internal const val ABN_AMOUNT2 = 0.2856
+        internal const val ABN_BUY_PRICE3 = 179.400
+        internal const val ABN_AMOUNT3 = 0.2787
+        internal const val ABN_BUY_PRICE4 = 188.740
+        internal const val ABN_AMOUNT4 = 10.5966
+        internal const val ABN_BUY_PRICE5 = 266.860
+        internal const val ABN_AMOUNT5 = 30.6977
+        internal const val ABN_BUY_PRICE6 = 348.720
+        internal const val ABN_AMOUNT6 = 29.7431
         internal const val ABN_GRAPHQL_URL = "https://www.nl.vanguard/gpx/graphql"
         internal val ABN_GRAPHQL_VARIABLES = JSONObject().apply {
             put("portIds", JSONObject.wrap(listOf("9179")))
@@ -103,7 +113,7 @@ class StockWidgetProvider : AppWidgetProvider() {
             StockInfo(
                 R.id.stock_label_textview_stock4, R.id.last_updated_textview_stock4, R.id.profit_loss_textview_stock4,
                 R.id.buy_price_textview_stock4, R.id.stock_price_textview_stock4,
-                ABN_BUY_PRICE, ABN_AMOUNT,
+                ABN_BUY_PRICE1, ABN_AMOUNT1 + ABN_AMOUNT2 + ABN_AMOUNT3 + ABN_AMOUNT4 + ABN_AMOUNT5 + ABN_AMOUNT6,
                 ABN_GRAPHQL_URL, // API URL is now the GraphQL endpoint
                 priceFormat = "€%.2f", // User specified format
                 isGraphQL = true,
@@ -173,7 +183,7 @@ class StockWidgetProvider : AppWidgetProvider() {
             payload.put("variables", variables)
 
             // Log cURL equivalent command
-            val escapedPayload = payload.toString().replace("'", "'\''") // Escape single quotes for -d '...'
+            val escapedPayload = payload.toString().replace("'", "'''") // Escape single quotes for -d '...'
             val curlCommand = """
                 curl -X ${connection.requestMethod} "$apiUrl" \
                 -H "Content-Type: ${connection.getRequestProperty("Content-Type")}" \
@@ -297,7 +307,11 @@ internal fun updateAppWidget(
         views.setViewVisibility(stockInfo.buyPriceViewId, View.VISIBLE)
         views.setViewVisibility(stockInfo.stockPriceViewId, View.VISIBLE)
 
-        views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, stockInfo.priceFormat, stockInfo.buyPrice))
+        if (index == 3) { // Special handling for ABN stock (index 3)
+            views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.4f", stockInfo.amount))
+        } else {
+            views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, stockInfo.priceFormat, stockInfo.buyPrice))
+        }
         views.setTextViewText(stockInfo.lastUpdatedViewId, updateTime)
 
         val currentPrice = prices.getOrElse(index) { Double.NaN }
@@ -309,15 +323,30 @@ internal fun updateAppWidget(
             views.setTextColor(stockInfo.profitLossViewId, Color.WHITE)
         } else {
             views.setTextViewText(stockInfo.stockPriceViewId, String.format(Locale.US, stockInfo.priceFormat, currentPrice))
+            // Determine text color based on buy price vs current price
+            // For ABN (index 3), stockInfo.buyPrice is ABN_BUY_PRICE1. This comparison might need adjustment
+            // if a different baseline for GREEN/RED coloring is desired for ABN's stock price.
+            // However, the profit/loss calculation below will be correct as per your formula.
             when {
-                currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.GREEN)
-                currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.RED)
+                currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.GREEN) // For ABN, this compares currentPrice to ABN_BUY_PRICE1
+                currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.RED)   // For ABN, this compares currentPrice to ABN_BUY_PRICE1
                 else -> views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
             }
 
-            val profitOrLoss = stockInfo.amount * (currentPrice - stockInfo.buyPrice)
-            // For ABN (index 3), the profit/loss might also need a specific format if its price is very different in magnitude.
-            // For now, using the standard "€%,.2f" for all profit/loss.
+            val profitOrLoss: Double
+            if (index == 3) { // Special calculation for ABN stock (index 3)
+                val totalBuyCostForABN = (StockWidgetProvider.ABN_AMOUNT1 * StockWidgetProvider.ABN_BUY_PRICE1) +
+                                         (StockWidgetProvider.ABN_AMOUNT2 * StockWidgetProvider.ABN_BUY_PRICE2) +
+                                         (StockWidgetProvider.ABN_AMOUNT3 * StockWidgetProvider.ABN_BUY_PRICE3) +
+                                         (StockWidgetProvider.ABN_AMOUNT4 * StockWidgetProvider.ABN_BUY_PRICE4) +
+                                         (StockWidgetProvider.ABN_AMOUNT5 * StockWidgetProvider.ABN_BUY_PRICE5) +
+                                         (StockWidgetProvider.ABN_AMOUNT6 * StockWidgetProvider.ABN_BUY_PRICE6)
+                // stockInfo.amount for ABN is already (ABN_AMOUNT1 + ... + ABN_AMOUNT6)
+                profitOrLoss = (stockInfo.amount * currentPrice) - totalBuyCostForABN
+            } else { // Standard calculation for other stocks
+                profitOrLoss = stockInfo.amount * (currentPrice - stockInfo.buyPrice)
+            }
+            
             views.setTextViewText(stockInfo.profitLossViewId, String.format(Locale.US, "€%,.2f", profitOrLoss))
             when {
                 profitOrLoss > 0 -> views.setTextColor(stockInfo.profitLossViewId, Color.GREEN)
