@@ -323,14 +323,15 @@ internal fun updateAppWidget(
             views.setTextColor(stockInfo.profitLossViewId, Color.WHITE)
         } else {
             views.setTextViewText(stockInfo.stockPriceViewId, String.format(Locale.US, stockInfo.priceFormat, currentPrice))
-            // Determine text color based on buy price vs current price
-            // For ABN (index 3), stockInfo.buyPrice is ABN_BUY_PRICE1. This comparison might need adjustment
-            // if a different baseline for GREEN/RED coloring is desired for ABN's stock price.
-            // However, the profit/loss calculation below will be correct as per your formula.
-            when {
-                currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.GREEN) // For ABN, this compares currentPrice to ABN_BUY_PRICE1
-                currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.RED)   // For ABN, this compares currentPrice to ABN_BUY_PRICE1
-                else -> views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
+            if (index == 3) { // ABN stock (index 3)
+                // No explicit color is set here for ABN stock price.
+                // The color will be determined by the XML layout.
+            } else { // For other stocks
+                when {
+                    currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.GREEN)
+                    currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.RED)
+                    else -> views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
+                }
             }
 
             val profitOrLoss: Double
