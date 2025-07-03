@@ -114,6 +114,7 @@ class StockWidgetProvider : AppWidgetProvider() {
         views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
         views.setViewVisibility(R.id.divider_line, View.GONE)
         views.setViewVisibility(R.id.divider_line_2, View.GONE)
+        views.setViewVisibility(R.id.divider_line_3, View.GONE) // Hide new divider
 
         // Hide all stock details
         stocks.forEach { stock ->
@@ -154,6 +155,7 @@ internal fun updateAppWidget(
     views.setViewVisibility(R.id.loading_indicator, View.GONE)
     views.setViewVisibility(R.id.divider_line, View.VISIBLE)
     views.setViewVisibility(R.id.divider_line_2, View.VISIBLE)
+    views.setViewVisibility(R.id.divider_line_3, View.VISIBLE) // Show new divider
 
     StockWidgetProvider.stocks.forEachIndexed { index, stockInfo ->
         // Set visibility for all views related to this stock

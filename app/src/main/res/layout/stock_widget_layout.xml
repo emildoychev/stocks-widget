@@ -258,6 +258,15 @@
             </RelativeLayout>
         </LinearLayout>
 
+        <ImageView
+            android:id="@+id/divider_line_3"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#FFFFFF"
+            android:layout_below="@id/stock3_price_details_layout"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp" />
+
         <ProgressBar
             android:id="@+id/loading_indicator"
             android:layout_width="wrap_content"
