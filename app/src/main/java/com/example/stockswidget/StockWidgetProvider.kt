@@ -30,7 +30,7 @@ internal data class StockInfo(
     val profitLossViewId: Int,
     val buyPriceViewId: Int,
     val stockPriceViewId: Int,
-    val buyPrice: Double, // For simple stocks, this is the buy price. For complex, it\\\'s a placeholder or not directly used for display.
+    val buyPrice: Double, // For simple stocks, this is the buy price. For complex, it\'s a placeholder or not directly used for display.
     val amount: Double, // For simple stocks, this is the amount. For complex, this is total shares.
     val apiUrl: String,
     val priceFormat: String = "€%.4f", // Default format
@@ -100,6 +100,13 @@ class StockWidgetProvider : AppWidgetProvider() {
         internal const val AMS_VUSA_AMOUNT3 = 27.0
         internal const val AMS_VUSA_API_URL = "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3AVUSA&fields=close"
 
+        // Stock 6: XETR | QDVE
+        internal const val XETR_QDVE_BUY_PRICE1 = 28.065
+        internal const val XETR_QDVE_AMOUNT1 = 884.0
+        internal const val XETR_QDVE_BUY_PRICE2 = 0.0
+        internal const val XETR_QDVE_AMOUNT2 = 0.0
+        internal const val XETR_QDVE_API_URL = "https://scanner.tradingview.com/symbol?symbol=XETR%3AQDVE&fields=close"
+
 
         internal val stocks = listOf(
             StockInfo(
@@ -137,6 +144,14 @@ class StockWidgetProvider : AppWidgetProvider() {
                 0.0, // Placeholder, actual buy price for AMS_VUSA is complex
                 AMS_VUSA_AMOUNT1 + AMS_VUSA_AMOUNT2 + AMS_VUSA_AMOUNT3, // Total shares
                 AMS_VUSA_API_URL,
+                priceFormat = "€%.2f"
+            ),
+            StockInfo(
+                R.id.stock_label_textview_stock6, R.id.last_updated_textview_stock6, R.id.profit_loss_textview_stock6,
+                R.id.buy_price_textview_stock6, R.id.stock_price_textview_stock6,
+                0.0, // Placeholder, actual buy price for XETR_QDVE is complex
+                XETR_QDVE_AMOUNT1 + XETR_QDVE_AMOUNT2, // Total shares
+                XETR_QDVE_API_URL,
                 priceFormat = "€%.2f"
             )
         )
@@ -199,7 +214,7 @@ class StockWidgetProvider : AppWidgetProvider() {
             payload.put("query", query)
             payload.put("variables", variables)
 
-            val escapedPayload = payload.toString().replace("'", "\'\'\'")
+            val escapedPayload = payload.toString().replace("'", "'''")
             val curlCommand = """
                 curl -X ${connection.requestMethod} "$apiUrl" \
                 -H "Content-Type: ${connection.getRequestProperty("Content-Type")}" \
@@ -333,12 +348,15 @@ internal fun updateAppWidget(
             totalInitialInvestmentCost = (StockWidgetProvider.AMS_VUSA_AMOUNT1 * StockWidgetProvider.AMS_VUSA_BUY_PRICE1) +
                                          (StockWidgetProvider.AMS_VUSA_AMOUNT2 * StockWidgetProvider.AMS_VUSA_BUY_PRICE2) +
                                          (StockWidgetProvider.AMS_VUSA_AMOUNT3 * StockWidgetProvider.AMS_VUSA_BUY_PRICE3)
+        } else if (index == 5) { // XETR_QDVE Stock
+            totalInitialInvestmentCost = (StockWidgetProvider.XETR_QDVE_AMOUNT1 * StockWidgetProvider.XETR_QDVE_BUY_PRICE1) +
+                                         (StockWidgetProvider.XETR_QDVE_AMOUNT2 * StockWidgetProvider.XETR_QDVE_BUY_PRICE2)
         }
 
         if (index == 3) { // ABN Stock
             // Display total shares (amount) formatted to 4 decimal places
             views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.4f", stockInfo.amount))
-        } else if (index == 4) { // AMS_VUSA Stock
+        } else if (index == 4 || index == 5) { // AMS_VUSA Stock or XETR_QDVE Stock
             // Display total shares (amount) formatted to 0 decimal places
             views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.0f", stockInfo.amount))
         } else { // Simple stocks
@@ -356,16 +374,16 @@ internal fun updateAppWidget(
             views.setTextColor(stockInfo.profitLossViewId, Color.WHITE)
         } else {
             views.setTextViewText(stockInfo.stockPriceViewId, String.format(Locale.US, stockInfo.priceFormat, currentPrice))
-            if (index != 3 && index != 4) { // For simple stocks, color based on buy price vs current price
+            if (index != 3 && index != 4 && index != 5) { // For simple stocks, color based on buy price vs current price
                  when {
                     currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.GREEN)
                     currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.RED)
                     else -> views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
                 }
-            } // For complex stocks (ABN, AMS_VUSA), stockPriceViewId color remains default (usually white based on XML)
+            } // For complex stocks (ABN, AMS_VUSA, XETR_QDVE), stockPriceViewId color remains default (usually white based on XML)
 
             val profitOrLoss: Double
-            if (index == 3 || index == 4) { // ABN or AMS_VUSA - use pre-calculated totalInitialInvestmentCost for profit/loss
+            if (index == 3 || index == 4 || index == 5) { // ABN or AMS_VUSA or XETR_QDVE - use pre-calculated totalInitialInvestmentCost for profit/loss
                  profitOrLoss = (stockInfo.amount * currentPrice) - totalInitialInvestmentCost!! // stockInfo.amount is total shares
             } else { // Standard calculation for other stocks
                 profitOrLoss = stockInfo.amount * (currentPrice - stockInfo.buyPrice)
