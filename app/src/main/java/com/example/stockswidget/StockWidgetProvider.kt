@@ -30,8 +30,8 @@ internal data class StockInfo(
     val profitLossViewId: Int,
     val buyPriceViewId: Int,
     val stockPriceViewId: Int,
-    val buyPrice: Double,
-    val amount: Double,
+    val buyPrice: Double, // For simple stocks, this is the buy price. For complex, it\\\'s a placeholder or not directly used for display.
+    val amount: Double, // For simple stocks, this is the amount. For complex, this is total shares.
     val apiUrl: String,
     val priceFormat: String = "€%.4f", // Default format
     val isGraphQL: Boolean = false,
@@ -91,6 +91,16 @@ class StockWidgetProvider : AppWidgetProvider() {
             }
         """
 
+        // Stock 5: AMS | VUSA
+        internal const val AMS_VUSA_BUY_PRICE1 = 75.0
+        internal const val AMS_VUSA_AMOUNT1 = 149.0
+        internal const val AMS_VUSA_BUY_PRICE2 = 97.75
+        internal const val AMS_VUSA_AMOUNT2 = 78.0
+        internal const val AMS_VUSA_BUY_PRICE3 = 98.0
+        internal const val AMS_VUSA_AMOUNT3 = 27.0
+        internal const val AMS_VUSA_API_URL = "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3AVUSA&fields=close"
+
+
         internal val stocks = listOf(
             StockInfo(
                 R.id.stock_label_textview, R.id.last_updated_textview, R.id.profit_loss_textview,
@@ -113,12 +123,21 @@ class StockWidgetProvider : AppWidgetProvider() {
             StockInfo(
                 R.id.stock_label_textview_stock4, R.id.last_updated_textview_stock4, R.id.profit_loss_textview_stock4,
                 R.id.buy_price_textview_stock4, R.id.stock_price_textview_stock4,
-                ABN_BUY_PRICE1, ABN_AMOUNT1 + ABN_AMOUNT2 + ABN_AMOUNT3 + ABN_AMOUNT4 + ABN_AMOUNT5 + ABN_AMOUNT6,
-                ABN_GRAPHQL_URL, // API URL is now the GraphQL endpoint
-                priceFormat = "€%.2f", // User specified format
+                0.0, // Placeholder, actual buy price for ABN is complex
+                ABN_AMOUNT1 + ABN_AMOUNT2 + ABN_AMOUNT3 + ABN_AMOUNT4 + ABN_AMOUNT5 + ABN_AMOUNT6, // Total shares
+                ABN_GRAPHQL_URL,
+                priceFormat = "€%.2f",
                 isGraphQL = true,
                 graphQLQuery = ABN_GRAPHQL_QUERY,
                 graphQLVariables = ABN_GRAPHQL_VARIABLES
+            ),
+            StockInfo(
+                R.id.stock_label_textview_stock5, R.id.last_updated_textview_stock5, R.id.profit_loss_textview_stock5,
+                R.id.buy_price_textview_stock5, R.id.stock_price_textview_stock5,
+                0.0, // Placeholder, actual buy price for AMS_VUSA is complex
+                AMS_VUSA_AMOUNT1 + AMS_VUSA_AMOUNT2 + AMS_VUSA_AMOUNT3, // Total shares
+                AMS_VUSA_API_URL,
+                priceFormat = "€%.2f"
             )
         )
     }
@@ -147,20 +166,18 @@ class StockWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    // Existing fetchPrice for simple GET requests
     private suspend fun fetchPrice(apiUrl: String): Double {
-        Log.d(TAG, "Fetching price for URL: $apiUrl") // Added log
+        Log.d(TAG, "Fetching price for URL: $apiUrl")
         return try {
             val jsonString = URL(apiUrl).readText()
             val jsonObject = JSONObject(jsonString)
             jsonObject.getDouble("close")
         } catch (e: Exception) {
             Log.e(TAG, "fetchPrice Error for $apiUrl: ${'$'}{e.message}", e)
-            Double.NaN // Return NaN on error
+            Double.NaN
         }
     }
 
-    // New fetchGraphQLPrice for POST GraphQL requests
     private suspend fun fetchGraphQLPrice(
         apiUrl: String,
         query: String,
@@ -173,7 +190,7 @@ class StockWidgetProvider : AppWidgetProvider() {
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
             connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("x-consumer-id", "GPX") // Specific header
+            connection.setRequestProperty("x-consumer-id", "GPX")
             connection.doOutput = true
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
@@ -182,8 +199,7 @@ class StockWidgetProvider : AppWidgetProvider() {
             payload.put("query", query)
             payload.put("variables", variables)
 
-            // Log cURL equivalent command
-            val escapedPayload = payload.toString().replace("'", "'''") // Escape single quotes for -d '...'
+            val escapedPayload = payload.toString().replace("'", "\'\'\'")
             val curlCommand = """
                 curl -X ${connection.requestMethod} "$apiUrl" \
                 -H "Content-Type: ${connection.getRequestProperty("Content-Type")}" \
@@ -193,7 +209,7 @@ class StockWidgetProvider : AppWidgetProvider() {
             """.trimIndent()
             Log.d(TAG, "Equivalent cURL command:\n$curlCommand")
 
-            Log.d(TAG, "GraphQL Payload for $apiUrl: ${'$'}{payload.toString()}") // Log payload
+            Log.d(TAG, "GraphQL Payload for $apiUrl: ${'$'}{payload.toString()}")
             OutputStreamWriter(connection.outputStream, "UTF-8").use { writer ->
                 writer.write(payload.toString())
                 writer.flush()
@@ -234,9 +250,8 @@ class StockWidgetProvider : AppWidgetProvider() {
         } finally {
             connection?.disconnect()
         }
-        return Double.NaN // Return NaN on error or if path is not found
+        return Double.NaN
     }
-
 
     private fun fetchStockData(
         context: Context,
@@ -249,10 +264,11 @@ class StockWidgetProvider : AppWidgetProvider() {
         views.setViewVisibility(R.id.divider_line_2, View.GONE)
         views.setViewVisibility(R.id.divider_line_3, View.GONE)
         views.setViewVisibility(R.id.divider_line_4, View.GONE)
+        views.setViewVisibility(R.id.divider_line_5, View.GONE)
+
 
         stocks.forEach { stock ->
             views.setViewVisibility(stock.labelViewId, View.GONE)
-            // ... (hiding other views as before)
             views.setViewVisibility(stock.lastUpdatedViewId, View.GONE)
             views.setViewVisibility(stock.profitLossViewId, View.GONE)
             views.setViewVisibility(stock.buyPriceViewId, View.GONE)
@@ -283,9 +299,6 @@ class StockWidgetProvider : AppWidgetProvider() {
     override fun onDisabled(context: Context) {}
 }
 
-// updateAppWidget function remains the same as in context [1]
-// but ensure it's outside the StockWidgetProvider class if it's a top-level function
-
 internal fun updateAppWidget(
     context: Context,
     appWidgetManager: AppWidgetManager,
@@ -299,6 +312,7 @@ internal fun updateAppWidget(
     views.setViewVisibility(R.id.divider_line_2, View.VISIBLE)
     views.setViewVisibility(R.id.divider_line_3, View.VISIBLE)
     views.setViewVisibility(R.id.divider_line_4, View.VISIBLE)
+    views.setViewVisibility(R.id.divider_line_5, View.VISIBLE)
 
     StockWidgetProvider.stocks.forEachIndexed { index, stockInfo ->
         views.setViewVisibility(stockInfo.labelViewId, View.VISIBLE)
@@ -307,11 +321,30 @@ internal fun updateAppWidget(
         views.setViewVisibility(stockInfo.buyPriceViewId, View.VISIBLE)
         views.setViewVisibility(stockInfo.stockPriceViewId, View.VISIBLE)
 
-        if (index == 3) { // Special handling for ABN stock (index 3)
+        var totalInitialInvestmentCost: Double? = null
+        if (index == 3) { // ABN Stock
+            totalInitialInvestmentCost = (StockWidgetProvider.ABN_AMOUNT1 * StockWidgetProvider.ABN_BUY_PRICE1) +
+                                         (StockWidgetProvider.ABN_AMOUNT2 * StockWidgetProvider.ABN_BUY_PRICE2) +
+                                         (StockWidgetProvider.ABN_AMOUNT3 * StockWidgetProvider.ABN_BUY_PRICE3) +
+                                         (StockWidgetProvider.ABN_AMOUNT4 * StockWidgetProvider.ABN_BUY_PRICE4) +
+                                         (StockWidgetProvider.ABN_AMOUNT5 * StockWidgetProvider.ABN_BUY_PRICE5) +
+                                         (StockWidgetProvider.ABN_AMOUNT6 * StockWidgetProvider.ABN_BUY_PRICE6)
+        } else if (index == 4) { // AMS_VUSA Stock
+            totalInitialInvestmentCost = (StockWidgetProvider.AMS_VUSA_AMOUNT1 * StockWidgetProvider.AMS_VUSA_BUY_PRICE1) +
+                                         (StockWidgetProvider.AMS_VUSA_AMOUNT2 * StockWidgetProvider.AMS_VUSA_BUY_PRICE2) +
+                                         (StockWidgetProvider.AMS_VUSA_AMOUNT3 * StockWidgetProvider.AMS_VUSA_BUY_PRICE3)
+        }
+
+        if (index == 3) { // ABN Stock
+            // Display total shares (amount) formatted to 4 decimal places
             views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.4f", stockInfo.amount))
-        } else {
+        } else if (index == 4) { // AMS_VUSA Stock
+            // Display total shares (amount) formatted to 0 decimal places
+            views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.0f", stockInfo.amount))
+        } else { // Simple stocks
             views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, stockInfo.priceFormat, stockInfo.buyPrice))
         }
+        
         views.setTextViewText(stockInfo.lastUpdatedViewId, updateTime)
 
         val currentPrice = prices.getOrElse(index) { Double.NaN }
@@ -323,27 +356,17 @@ internal fun updateAppWidget(
             views.setTextColor(stockInfo.profitLossViewId, Color.WHITE)
         } else {
             views.setTextViewText(stockInfo.stockPriceViewId, String.format(Locale.US, stockInfo.priceFormat, currentPrice))
-            if (index == 3) { // ABN stock (index 3)
-                // No explicit color is set here for ABN stock price.
-                // The color will be determined by the XML layout.
-            } else { // For other stocks
-                when {
+            if (index != 3 && index != 4) { // For simple stocks, color based on buy price vs current price
+                 when {
                     currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.GREEN)
                     currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.RED)
                     else -> views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
                 }
-            }
+            } // For complex stocks (ABN, AMS_VUSA), stockPriceViewId color remains default (usually white based on XML)
 
             val profitOrLoss: Double
-            if (index == 3) { // Special calculation for ABN stock (index 3)
-                val totalBuyCostForABN = (StockWidgetProvider.ABN_AMOUNT1 * StockWidgetProvider.ABN_BUY_PRICE1) +
-                                         (StockWidgetProvider.ABN_AMOUNT2 * StockWidgetProvider.ABN_BUY_PRICE2) +
-                                         (StockWidgetProvider.ABN_AMOUNT3 * StockWidgetProvider.ABN_BUY_PRICE3) +
-                                         (StockWidgetProvider.ABN_AMOUNT4 * StockWidgetProvider.ABN_BUY_PRICE4) +
-                                         (StockWidgetProvider.ABN_AMOUNT5 * StockWidgetProvider.ABN_BUY_PRICE5) +
-                                         (StockWidgetProvider.ABN_AMOUNT6 * StockWidgetProvider.ABN_BUY_PRICE6)
-                // stockInfo.amount for ABN is already (ABN_AMOUNT1 + ... + ABN_AMOUNT6)
-                profitOrLoss = (stockInfo.amount * currentPrice) - totalBuyCostForABN
+            if (index == 3 || index == 4) { // ABN or AMS_VUSA - use pre-calculated totalInitialInvestmentCost for profit/loss
+                 profitOrLoss = (stockInfo.amount * currentPrice) - totalInitialInvestmentCost!! // stockInfo.amount is total shares
             } else { // Standard calculation for other stocks
                 profitOrLoss = stockInfo.amount * (currentPrice - stockInfo.buyPrice)
             }
