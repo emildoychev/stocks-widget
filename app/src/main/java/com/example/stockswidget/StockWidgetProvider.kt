@@ -26,7 +26,7 @@ internal data class StockInfo(
     val buyPriceViewId: Int,
     val stockPriceViewId: Int,
     val buyPrice: Double,
-    val amount: Int,
+    val amount: Double, // Changed from Int to Double
     val apiUrl: String,
     val priceFormat: String = "€%.4f" // Default format, can be overridden
 )
@@ -38,15 +38,19 @@ class StockWidgetProvider : AppWidgetProvider() {
 
         // Stock 1: MIL | S3CO
         internal const val MIL_S3CO_BUY_PRICE = 0.0847
-        internal const val MIL_S3CO_AMOUNT = 52356
+        internal const val MIL_S3CO_AMOUNT = 52356.0 // Ensured Double
 
         // Stock 2: EAM | 3AMD
         internal const val EAM_3AMD_BUY_PRICE = 0.538
-        internal const val EAM_3AMD_AMOUNT = 27881
+        internal const val EAM_3AMD_AMOUNT = 27881.0 // Ensured Double
 
         // Stock 3: XET | COMS
         internal const val XET_COMS_BUY_PRICE = 2.4290
-        internal const val XET_COMS_AMOUNT = 4117
+        internal const val XET_COMS_AMOUNT = 4117.0 // Ensured Double
+
+        // Stock 4: ABN
+        internal const val ABN_BUY_PRICE = 183.020
+        internal const val ABN_AMOUNT = 0.5464
 
         internal val stocks = listOf(
             StockInfo(
@@ -59,13 +63,20 @@ class StockWidgetProvider : AppWidgetProvider() {
                 R.id.stock_label_textview_stock2, R.id.last_updated_textview_stock2, R.id.profit_loss_textview_stock2,
                 R.id.buy_price_textview_stock2, R.id.stock_price_textview_stock2,
                 EAM_3AMD_BUY_PRICE, EAM_3AMD_AMOUNT,
-                "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3A3AMD&fields=close",
+                "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3A3AMD&fields=close"
             ),
             StockInfo(
                 R.id.stock_label_textview_stock3, R.id.last_updated_textview_stock3, R.id.profit_loss_textview_stock3,
                 R.id.buy_price_textview_stock3, R.id.stock_price_textview_stock3,
                 XET_COMS_BUY_PRICE, XET_COMS_AMOUNT,
                 "https://scanner.tradingview.com/symbol?symbol=XETR%3ACOMS&fields=close"
+            ),
+            StockInfo(
+                R.id.stock_label_textview_stock4, R.id.last_updated_textview_stock4, R.id.profit_loss_textview_stock4,
+                R.id.buy_price_textview_stock4, R.id.stock_price_textview_stock4,
+                ABN_BUY_PRICE, ABN_AMOUNT,
+                "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3AVUSA&fields=close",
+                priceFormat = "€%.2f" // Custom format for ABN
             )
         )
     }
@@ -114,7 +125,8 @@ class StockWidgetProvider : AppWidgetProvider() {
         views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
         views.setViewVisibility(R.id.divider_line, View.GONE)
         views.setViewVisibility(R.id.divider_line_2, View.GONE)
-        views.setViewVisibility(R.id.divider_line_3, View.GONE) // Hide new divider
+        views.setViewVisibility(R.id.divider_line_3, View.GONE)
+        views.setViewVisibility(R.id.divider_line_4, View.GONE) // Hide new divider
 
         // Hide all stock details
         stocks.forEach { stock ->
@@ -155,7 +167,8 @@ internal fun updateAppWidget(
     views.setViewVisibility(R.id.loading_indicator, View.GONE)
     views.setViewVisibility(R.id.divider_line, View.VISIBLE)
     views.setViewVisibility(R.id.divider_line_2, View.VISIBLE)
-    views.setViewVisibility(R.id.divider_line_3, View.VISIBLE) // Show new divider
+    views.setViewVisibility(R.id.divider_line_3, View.VISIBLE)
+    views.setViewVisibility(R.id.divider_line_4, View.VISIBLE) // Show new divider
 
     StockWidgetProvider.stocks.forEachIndexed { index, stockInfo ->
         // Set visibility for all views related to this stock
@@ -184,7 +197,7 @@ internal fun updateAppWidget(
             }
 
             val profitOrLoss = stockInfo.amount * (currentPrice - stockInfo.buyPrice)
-            views.setTextViewText(stockInfo.profitLossViewId, String.format(Locale.US, "€%,.2f", profitOrLoss))
+            views.setTextViewText(stockInfo.profitLossViewId, String.format(Locale.US, "€%,.2f", profitOrLoss)) // Standard profit/loss format
             when {
                 profitOrLoss > 0 -> views.setTextColor(stockInfo.profitLossViewId, Color.GREEN)
                 profitOrLoss < 0 -> views.setTextColor(stockInfo.profitLossViewId, Color.RED)
