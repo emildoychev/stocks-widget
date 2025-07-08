@@ -46,8 +46,10 @@ class StockWidgetProvider : AppWidgetProvider() {
         internal const val ACTION_MANUAL_REFRESH = "com.example.stockswidget.ACTION_MANUAL_REFRESH"
 
         // Stock 1: MIL | S3CO
-        internal const val MIL_S3CO_BUY_PRICE = 0.0847
-        internal const val MIL_S3CO_AMOUNT = 52356.0
+        internal const val MIL_S3CO_BUY_PRICE_ORIG = 0.0847
+        internal const val MIL_S3CO_AMOUNT_ORIG = 52356.0
+        internal const val MIL_S3CO_BUY_PRICE = 46.431
+        internal const val MIL_S3CO_AMOUNT = 78.0
 
         // Stock 2: EAM | 3AMD
         internal const val EAM_3AMD_BUY_PRICE = 0.538
@@ -113,7 +115,8 @@ class StockWidgetProvider : AppWidgetProvider() {
                 R.id.stock_label_textview, R.id.last_updated_textview, R.id.profit_loss_textview,
                 R.id.buy_price_textview, R.id.stock_price_textview,
                 MIL_S3CO_BUY_PRICE, MIL_S3CO_AMOUNT,
-                "https://scanner.tradingview.com/symbol?symbol=MIL%3AS3CO&fields=close"
+                "https://scanner.tradingview.com/symbol?symbol=MIL%3AS3CO&fields=close",
+                priceFormat = "€%.3f",
             ),
             StockInfo(
                 R.id.stock_label_textview_stock2, R.id.last_updated_textview_stock2, R.id.profit_loss_textview_stock2,
@@ -214,7 +217,7 @@ class StockWidgetProvider : AppWidgetProvider() {
             payload.put("query", query)
             payload.put("variables", variables)
 
-            val escapedPayload = payload.toString().replace("'", "'''")
+            val escapedPayload = payload.toString().replace("'", "\'\'\'")
             val curlCommand = """
                 curl -X ${connection.requestMethod} "$apiUrl" \
                 -H "Content-Type: ${connection.getRequestProperty("Content-Type")}" \
@@ -336,7 +339,7 @@ internal fun updateAppWidget(
         views.setViewVisibility(stockInfo.buyPriceViewId, View.VISIBLE)
         views.setViewVisibility(stockInfo.stockPriceViewId, View.VISIBLE)
 
-        var totalInitialInvestmentCost: Double? = null
+        var totalInitialInvestmentCost: Double? = null // This is for complex stocks 3, 4, 5
         if (index == 3) { // ABN Stock
             totalInitialInvestmentCost = (StockWidgetProvider.ABN_AMOUNT1 * StockWidgetProvider.ABN_BUY_PRICE1) +
                                          (StockWidgetProvider.ABN_AMOUNT2 * StockWidgetProvider.ABN_BUY_PRICE2) +
@@ -359,7 +362,7 @@ internal fun updateAppWidget(
         } else if (index == 4 || index == 5) { // AMS_VUSA Stock or XETR_QDVE Stock
             // Display total shares (amount) formatted to 0 decimal places
             views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.0f", stockInfo.amount))
-        } else { // Simple stocks
+        } else { // Simple stocks (index 0, 1, 2)
             views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, stockInfo.priceFormat, stockInfo.buyPrice))
         }
         
@@ -374,18 +377,22 @@ internal fun updateAppWidget(
             views.setTextColor(stockInfo.profitLossViewId, Color.WHITE)
         } else {
             views.setTextViewText(stockInfo.stockPriceViewId, String.format(Locale.US, stockInfo.priceFormat, currentPrice))
-            if (index != 3 && index != 4 && index != 5) { // For simple stocks, color based on buy price vs current price
+            if (index != 3 && index != 4 && index != 5) {
                  when {
                     currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.GREEN)
                     currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.RED)
                     else -> views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
                 }
-            } // For complex stocks (ABN, AMS_VUSA, XETR_QDVE), stockPriceViewId color remains default (usually white based on XML)
+            }
 
             val profitOrLoss: Double
-            if (index == 3 || index == 4 || index == 5) { // ABN or AMS_VUSA or XETR_QDVE - use pre-calculated totalInitialInvestmentCost for profit/loss
-                 profitOrLoss = (stockInfo.amount * currentPrice) - totalInitialInvestmentCost!! // stockInfo.amount is total shares
-            } else { // Standard calculation for other stocks
+            if (index == 0) { // Stock 1: MIL | S3CO - Special profit/loss calculation
+                val initialInvestmentCostOrig = StockWidgetProvider.MIL_S3CO_BUY_PRICE_ORIG * StockWidgetProvider.MIL_S3CO_AMOUNT_ORIG
+                val currentMarketValue = currentPrice * stockInfo.amount // stockInfo.amount is MIL_S3CO_AMOUNT
+                profitOrLoss = currentMarketValue - initialInvestmentCostOrig
+            } else if (index == 3 || index == 4 || index == 5) { // ABN, AMS_VUSA, or XETR_QDVE
+                 profitOrLoss = (stockInfo.amount * currentPrice) - totalInitialInvestmentCost!!
+            } else { // Standard calculation for other simple stocks (index 1, 2)
                 profitOrLoss = stockInfo.amount * (currentPrice - stockInfo.buyPrice)
             }
             
