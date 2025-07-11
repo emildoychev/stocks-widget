@@ -12,7 +12,7 @@
         android:layout_alignParentEnd="true"
         android:src="@android:drawable/ic_popup_sync"
         android:contentDescription="Refresh"
-        android:background="@android:color/transparent"
+        android:background="@drawable/refresh_button_selector"
         android:scaleType="fitCenter" />
 
     <RelativeLayout
@@ -21,6 +21,7 @@
         android:layout_height="wrap_content"
         android:layout_centerInParent="true">
 
+        <!-- Stock 1 -->
         <LinearLayout
             android:id="@+id/stock1_price_details_layout"
             android:layout_width="match_parent"
@@ -28,11 +29,9 @@
             android:orientation="vertical"
             android:layout_alignParentTop="true">
 
-            <!-- Row 1: Stock Label and Profit/Loss -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/stock_label_textview"
                     android:layout_width="wrap_content"
@@ -43,7 +42,6 @@
                     android:textStyle="bold"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true" />
-
                 <TextView
                     android:id="@+id/profit_loss_textview"
                     android:layout_width="wrap_content"
@@ -55,12 +53,9 @@
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/stock_label_textview" />
             </RelativeLayout>
-
-            <!-- Row 2: Last Updated, Buy Price, Stock Price -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/last_updated_textview"
                     android:layout_width="wrap_content"
@@ -70,7 +65,6 @@
                     android:textSize="10sp"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"/>
-
                 <TextView
                     android:id="@+id/stock_price_textview"
                     android:layout_width="wrap_content"
@@ -80,7 +74,6 @@
                     android:textSize="10sp"
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/last_updated_textview" />
-
                 <TextView
                     android:id="@+id/buy_price_textview"
                     android:layout_width="wrap_content"
@@ -103,18 +96,16 @@
             android:layout_marginTop="4dp"
             android:layout_marginBottom="4dp" />
 
+        <!-- Stock 2 -->
         <LinearLayout
             android:id="@+id/stock2_price_details_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:layout_below="@id/divider_line">
-
-            <!-- Row 1: Stock Label and Profit/Loss for Stock 2 -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/stock_label_textview_stock2"
                     android:layout_width="wrap_content"
@@ -125,7 +116,6 @@
                     android:textStyle="bold"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true" />
-
                 <TextView
                     android:id="@+id/profit_loss_textview_stock2"
                     android:layout_width="wrap_content"
@@ -137,12 +127,9 @@
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/stock_label_textview_stock2" />
             </RelativeLayout>
-
-            <!-- Row 2: Last Updated, Buy Price, Stock Price for Stock 2 -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/last_updated_textview_stock2"
                     android:layout_width="wrap_content"
@@ -152,7 +139,6 @@
                     android:textSize="10sp"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"/>
-
                 <TextView
                     android:id="@+id/stock_price_textview_stock2"
                     android:layout_width="wrap_content"
@@ -162,7 +148,6 @@
                     android:textSize="10sp"
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/last_updated_textview_stock2" />
-
                 <TextView
                     android:id="@+id/buy_price_textview_stock2"
                     android:layout_width="wrap_content"
@@ -185,18 +170,16 @@
             android:layout_marginTop="4dp"
             android:layout_marginBottom="4dp" />
 
+        <!-- Stock 3 -->
         <LinearLayout
             android:id="@+id/stock3_price_details_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:layout_below="@id/divider_line_2">
-
-            <!-- Row 1: Stock Label and Profit/Loss for Stock 3 -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/stock_label_textview_stock3"
                     android:layout_width="wrap_content"
@@ -207,7 +190,6 @@
                     android:textStyle="bold"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true" />
-
                 <TextView
                     android:id="@+id/profit_loss_textview_stock3"
                     android:layout_width="wrap_content"
@@ -219,12 +201,9 @@
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/stock_label_textview_stock3" />
             </RelativeLayout>
-
-            <!-- Row 2: Last Updated, Buy Price, Stock Price for Stock 3 -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/last_updated_textview_stock3"
                     android:layout_width="wrap_content"
@@ -234,7 +213,6 @@
                     android:textSize="10sp"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"/>
-
                 <TextView
                     android:id="@+id/stock_price_textview_stock3"
                     android:layout_width="wrap_content"
@@ -244,7 +222,6 @@
                     android:textSize="10sp"
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/last_updated_textview_stock3" />
-
                 <TextView
                     android:id="@+id/buy_price_textview_stock3"
                     android:layout_width="wrap_content"
@@ -267,18 +244,16 @@
             android:layout_marginTop="4dp"
             android:layout_marginBottom="4dp" />
 
+        <!-- Stock 4 -->
         <LinearLayout
             android:id="@+id/stock4_price_details_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:layout_below="@id/divider_line_3">
-
-            <!-- Row 1: Stock Label and Profit/Loss for Stock 4 -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/stock_label_textview_stock4"
                     android:layout_width="wrap_content"
@@ -289,7 +264,6 @@
                     android:textStyle="bold"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true" />
-
                 <TextView
                     android:id="@+id/profit_loss_textview_stock4"
                     android:layout_width="wrap_content"
@@ -301,12 +275,9 @@
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/stock_label_textview_stock4" />
             </RelativeLayout>
-
-            <!-- Row 2: Last Updated, Buy Price, Stock Price for Stock 4 -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/last_updated_textview_stock4"
                     android:layout_width="wrap_content"
@@ -316,17 +287,15 @@
                     android:textSize="10sp"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"/>
-
                 <TextView
                     android:id="@+id/stock_price_textview_stock4"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Loading..."
-                    android:textColor="#CCCCCC"
+                    android:textColor="#FFFFFF"
                     android:textSize="10sp"
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/last_updated_textview_stock4" />
-
                 <TextView
                     android:id="@+id/buy_price_textview_stock4"
                     android:layout_width="wrap_content"
@@ -349,18 +318,16 @@
             android:layout_marginTop="4dp"
             android:layout_marginBottom="4dp" />
 
+        <!-- Stock 5 -->
         <LinearLayout
             android:id="@+id/stock5_price_details_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:layout_below="@id/divider_line_4">
-
-            <!-- Row 1: Stock Label and Profit/Loss for Stock 5 -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/stock_label_textview_stock5"
                     android:layout_width="wrap_content"
@@ -371,7 +338,6 @@
                     android:textStyle="bold"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true" />
-
                 <TextView
                     android:id="@+id/profit_loss_textview_stock5"
                     android:layout_width="wrap_content"
@@ -383,12 +349,9 @@
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/stock_label_textview_stock5" />
             </RelativeLayout>
-
-            <!-- Row 2: Last Updated, Buy Price, Stock Price for Stock 5 -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/last_updated_textview_stock5"
                     android:layout_width="wrap_content"
@@ -398,17 +361,15 @@
                     android:textSize="10sp"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"/>
-
                 <TextView
                     android:id="@+id/stock_price_textview_stock5"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Loading..."
-                    android:textColor="#CCCCCC"
+                    android:textColor="#FFFFFF"
                     android:textSize="10sp"
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/last_updated_textview_stock5" />
-
                 <TextView
                     android:id="@+id/buy_price_textview_stock5"
                     android:layout_width="wrap_content"
@@ -431,18 +392,16 @@
             android:layout_marginTop="4dp"
             android:layout_marginBottom="4dp" />
 
+        <!-- Stock 6 -->
         <LinearLayout
             android:id="@+id/stock6_price_details_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:layout_below="@id/divider_line_5">
-
-            <!-- Row 1: Stock Label and Profit/Loss for Stock 6 -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/stock_label_textview_stock6"
                     android:layout_width="wrap_content"
@@ -453,7 +412,6 @@
                     android:textStyle="bold"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true" />
-
                 <TextView
                     android:id="@+id/profit_loss_textview_stock6"
                     android:layout_width="wrap_content"
@@ -465,12 +423,9 @@
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/stock_label_textview_stock6" />
             </RelativeLayout>
-
-            <!-- Row 2: Last Updated, Buy Price, Stock Price for Stock 6 -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <TextView
                     android:id="@+id/last_updated_textview_stock6"
                     android:layout_width="wrap_content"
@@ -480,17 +435,15 @@
                     android:textSize="10sp"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"/>
-
                 <TextView
                     android:id="@+id/stock_price_textview_stock6"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Loading..."
-                    android:textColor="#CCCCCC"
+                    android:textColor="#FFFFFF"
                     android:textSize="10sp"
                     android:layout_alignParentEnd="true"
                     android:layout_alignBaseline="@id/last_updated_textview_stock6" />
-
                 <TextView
                     android:id="@+id/buy_price_textview_stock6"
                     android:layout_width="wrap_content"
@@ -503,12 +456,13 @@
                     android:layout_marginEnd="4dp" />
             </RelativeLayout>
         </LinearLayout>
-
-        <ProgressBar
-            android:id="@+id/loading_indicator"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:visibility="gone" />
     </RelativeLayout>
+
+    <ProgressBar
+        android:id="@+id/loading_indicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:visibility="gone" />
+
 </RelativeLayout>
