@@ -503,12 +503,13 @@
                     android:layout_marginEnd="4dp" />
             </RelativeLayout>
         </LinearLayout>
-
-        <ProgressBar
-            android:id="@+id/loading_indicator"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:visibility="gone" />
     </RelativeLayout>
+
+    <ProgressBar
+        android:id="@+id/loading_indicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:visibility="gone" />
+
 </RelativeLayout>

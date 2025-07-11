@@ -3,25 +3,27 @@ package com.example.stockswidget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.os.Build
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 // Data class to hold information and view IDs for each stock
 internal data class StockInfo(
@@ -30,7 +32,7 @@ internal data class StockInfo(
     val profitLossViewId: Int,
     val buyPriceViewId: Int,
     val stockPriceViewId: Int,
-    val buyPrice: Double, // For simple stocks, this is the buy price. For complex, it\'s a placeholder or not directly used for display.
+    val buyPrice: Double, // For simple stocks, this is the buy price. For complex, it's a placeholder or not directly used for display.
     val amount: Double, // For simple stocks, this is the amount. For complex, this is total shares.
     val apiUrl: String,
     val priceFormat: String = "€%.4f", // Default format
@@ -44,6 +46,7 @@ class StockWidgetProvider : AppWidgetProvider() {
     companion object {
         private const val TAG = "StockWidgetProvider"
         internal const val ACTION_MANUAL_REFRESH = "com.example.stockswidget.ACTION_MANUAL_REFRESH"
+        private const val STOCK_UPDATE_WORK_NAME = "com.example.stockswidget.STOCK_UPDATE_WORK"
 
         // Stock 1: XET | CIWP
         internal const val XET_CIWP_BUY_PRICE_ORIG = 0.7085
@@ -164,9 +167,20 @@ class StockWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        for (appWidgetId in appWidgetIds) {
-            fetchStockData(context, appWidgetManager, appWidgetId)
-        }
+        Log.d(TAG, "onUpdate called. Scheduling periodic work.")
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val periodicWorkRequest = PeriodicWorkRequestBuilder<StockUpdateWorker>(30, TimeUnit.MINUTES)
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            STOCK_UPDATE_WORK_NAME,
+            ExistingPeriodicWorkPolicy.REPLACE,
+            periodicWorkRequest
+        )
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -176,146 +190,51 @@ class StockWidgetProvider : AppWidgetProvider() {
                 AppWidgetManager.EXTRA_APPWIDGET_ID,
                 AppWidgetManager.INVALID_APPWIDGET_ID
             )
+            Log.d(TAG, "Manual refresh triggered for widget ID: $appWidgetId")
             if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                fetchStockData(context, appWidgetManager, appWidgetId)
+                val constraints = Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+
+                val oneTimeWorkRequest = OneTimeWorkRequestBuilder<StockUpdateWorker>()
+                    .setConstraints(constraints)
+                    .setInputData(workDataOf(StockUpdateWorker.KEY_APP_WIDGET_IDS to intArrayOf(appWidgetId)))
+                    .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                    .build()
+                WorkManager.getInstance(context).enqueue(oneTimeWorkRequest)
             }
         }
     }
 
-    private suspend fun fetchPrice(apiUrl: String): Double {
-        Log.d(TAG, "Fetching price for URL: $apiUrl")
-        return try {
-            val jsonString = URL(apiUrl).readText()
-            val jsonObject = JSONObject(jsonString)
-            jsonObject.getDouble("close")
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchPrice Error for $apiUrl: ${'$'}{e.message}", e)
-            Double.NaN
-        }
+    override fun onEnabled(context: Context) {
+        Log.d(TAG, "onEnabled: First widget instance created. Scheduling initial work.")
+        // This is a good place to schedule the first update immediately if desired,
+        // or ensure the periodic work is scheduled.
+        // For simplicity, onUpdate will handle the periodic scheduling when the first widget is added.
+        // If you want an immediate update on first placement, you can enqueue a OneTimeWorkRequest here.
+         val appWidgetManager = AppWidgetManager.getInstance(context)
+         val thisAppWidget = ComponentName(context.packageName, javaClass.name)
+         val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
+         if (appWidgetIds.isNotEmpty()) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+            val oneTimeWorkRequest = OneTimeWorkRequestBuilder<StockUpdateWorker>()
+                .setConstraints(constraints)
+                 .setInputData(workDataOf(StockUpdateWorker.KEY_APP_WIDGET_IDS to appWidgetIds))
+                .build() // Consider also making this expedited if needed on first enable
+            WorkManager.getInstance(context).enqueue(oneTimeWorkRequest)
+         }
     }
 
-    private suspend fun fetchGraphQLPrice(
-        apiUrl: String,
-        query: String,
-        variables: JSONObject
-    ): Double {
-        var connection: HttpURLConnection? = null
-        try {
-            val url = URL(apiUrl)
-            connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("x-consumer-id", "GPX")
-            connection.doOutput = true
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
-
-            val payload = JSONObject()
-            payload.put("query", query)
-            payload.put("variables", variables)
-
-            val escapedPayload = payload.toString().replace("'", "\'\'\'")
-            val curlCommand = """
-                curl -X ${connection.requestMethod} "$apiUrl" \
-                -H "Content-Type: ${connection.getRequestProperty("Content-Type")}" \
-                -H "Accept: ${connection.getRequestProperty("Accept")}" \
-                -H "x-consumer-id: ${connection.getRequestProperty("x-consumer-id")}" \
-                -d '$escapedPayload'
-            """.trimIndent()
-            Log.d(TAG, "Equivalent cURL command:\n$curlCommand")
-
-            Log.d(TAG, "GraphQL Payload for $apiUrl: ${'$'}{payload.toString()}")
-            OutputStreamWriter(connection.outputStream, "UTF-8").use { writer ->
-                writer.write(payload.toString())
-                writer.flush()
-            }
-
-            val responseCode = connection.responseCode
-            Log.d(TAG, "GraphQL Response Code for $apiUrl: $responseCode")
-
-            val streamReader = if (responseCode == HttpURLConnection.HTTP_OK) {
-                InputStreamReader(connection.inputStream)
-            } else {
-                InputStreamReader(connection.errorStream ?: connection.inputStream)
-            }
-
-            BufferedReader(streamReader).use { reader ->
-                val responseString = reader.readText()
-                Log.d(TAG, "GraphQL Raw Response for $apiUrl: $responseString")
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    val jsonResponse = JSONObject(responseString)
-                    val dataObject = jsonResponse.optJSONObject("data")
-                    val fundsArray = dataObject?.optJSONArray("funds")
-                    if (fundsArray != null && fundsArray.length() > 0) {
-                        val firstFund = fundsArray.optJSONObject(0)
-                        val pricingDetails = firstFund?.optJSONObject("pricingDetails")
-                        val navPrices = pricingDetails?.optJSONObject("navPrices")
-                        val itemsArray = navPrices?.optJSONArray("items")
-                        if (itemsArray != null && itemsArray.length() > 0) {
-                            val firstItem = itemsArray.optJSONObject(0)
-                            return firstItem?.optDouble("price", Double.NaN) ?: Double.NaN
-                        }
-                    }
-                } else {
-                    Log.e(TAG, "GraphQL Error for $apiUrl. Response: $responseString")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchGraphQLPrice Error for $apiUrl: ${'$'}{e.message}", e)
-        } finally {
-            connection?.disconnect()
-        }
-        return Double.NaN
+    override fun onDisabled(context: Context) {
+        Log.d(TAG, "onDisabled: Last widget instance removed. Cancelling work.")
+        WorkManager.getInstance(context).cancelUniqueWork(STOCK_UPDATE_WORK_NAME)
     }
-
-    private fun fetchStockData(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetId: Int
-    ) {
-        val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
-        views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
-        views.setViewVisibility(R.id.divider_line, View.GONE)
-        views.setViewVisibility(R.id.divider_line_2, View.GONE)
-        views.setViewVisibility(R.id.divider_line_3, View.GONE)
-        views.setViewVisibility(R.id.divider_line_4, View.GONE)
-        views.setViewVisibility(R.id.divider_line_5, View.GONE)
-
-
-        stocks.forEach { stock ->
-            views.setViewVisibility(stock.labelViewId, View.GONE)
-            views.setViewVisibility(stock.lastUpdatedViewId, View.GONE)
-            views.setViewVisibility(stock.profitLossViewId, View.GONE)
-            views.setViewVisibility(stock.buyPriceViewId, View.GONE)
-            views.setViewVisibility(stock.stockPriceViewId, View.GONE)
-        }
-        appWidgetManager.updateAppWidget(appWidgetId, views)
-
-        GlobalScope.launch(Dispatchers.IO) {
-            val fetchedPrices = mutableListOf<Double>()
-            for (stock in stocks) {
-                val price = if (stock.isGraphQL) {
-                    fetchGraphQLPrice(stock.apiUrl, stock.graphQLQuery!!, stock.graphQLVariables!!)
-                } else {
-                    fetchPrice(stock.apiUrl)
-                }
-                fetchedPrices.add(price)
-            }
-            val currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-
-            withContext(Dispatchers.Main) {
-                updateAppWidget(context, appWidgetManager, appWidgetId, fetchedPrices, currentTime)
-            }
-        }
-    }
-
-    override fun onEnabled(context: Context) {}
-
-    override fun onDisabled(context: Context) {}
 }
 
+// This function remains top-level or can be moved to a companion object if preferred by worker.
+// It's used by StockUpdateWorker to update the widget UI.
 internal fun updateAppWidget(
     context: Context,
     appWidgetManager: AppWidgetManager,
@@ -323,13 +242,17 @@ internal fun updateAppWidget(
     prices: List<Double>,
     updateTime: String
 ) {
+    Log.d("updateAppWidget", "Updating widget $appWidgetId with ${prices.size} prices at $updateTime")
     val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
+
+    // Resetting visibility for all views initially to handle cases where some might have been GONE
     views.setViewVisibility(R.id.loading_indicator, View.GONE)
-    views.setViewVisibility(R.id.divider_line, View.VISIBLE)
-    views.setViewVisibility(R.id.divider_line_2, View.VISIBLE)
-    views.setViewVisibility(R.id.divider_line_3, View.VISIBLE)
-    views.setViewVisibility(R.id.divider_line_4, View.VISIBLE)
-    views.setViewVisibility(R.id.divider_line_5, View.VISIBLE)
+    views.setViewVisibility(R.id.content_container, View.VISIBLE) // Make sure content container is visible
+    
+    val dividerIds = listOf(R.id.divider_line, R.id.divider_line_2, R.id.divider_line_3, R.id.divider_line_4, R.id.divider_line_5) // Assuming up to 6 stocks
+    dividerIds.forEachIndexed { index, dividerId ->
+        views.setViewVisibility(dividerId, if (index < StockWidgetProvider.stocks.size -1) View.VISIBLE else View.GONE)
+    }
 
     StockWidgetProvider.stocks.forEachIndexed { index, stockInfo ->
         views.setViewVisibility(stockInfo.labelViewId, View.VISIBLE)
@@ -338,31 +261,32 @@ internal fun updateAppWidget(
         views.setViewVisibility(stockInfo.buyPriceViewId, View.VISIBLE)
         views.setViewVisibility(stockInfo.stockPriceViewId, View.VISIBLE)
 
-        var totalInitialInvestmentCost: Double? = null // This is for complex stocks 3, 4, 5
-        if (index == 3) { // ABN Stock
-            totalInitialInvestmentCost = (StockWidgetProvider.ABN_AMOUNT1 * StockWidgetProvider.ABN_BUY_PRICE1) +
-                                         (StockWidgetProvider.ABN_AMOUNT2 * StockWidgetProvider.ABN_BUY_PRICE2) +
-                                         (StockWidgetProvider.ABN_AMOUNT3 * StockWidgetProvider.ABN_BUY_PRICE3) +
-                                         (StockWidgetProvider.ABN_AMOUNT4 * StockWidgetProvider.ABN_BUY_PRICE4) +
-                                         (StockWidgetProvider.ABN_AMOUNT5 * StockWidgetProvider.ABN_BUY_PRICE5) +
-                                         (StockWidgetProvider.ABN_AMOUNT6 * StockWidgetProvider.ABN_BUY_PRICE6)
-        } else if (index == 4) { // AMS_VUSA Stock
-            totalInitialInvestmentCost = (StockWidgetProvider.AMS_VUSA_AMOUNT1 * StockWidgetProvider.AMS_VUSA_BUY_PRICE1) +
-                                         (StockWidgetProvider.AMS_VUSA_AMOUNT2 * StockWidgetProvider.AMS_VUSA_BUY_PRICE2) +
-                                         (StockWidgetProvider.AMS_VUSA_AMOUNT3 * StockWidgetProvider.AMS_VUSA_BUY_PRICE3)
-        } else if (index == 5) { // XETR_QDVE Stock
-            totalInitialInvestmentCost = (StockWidgetProvider.XETR_QDVE_AMOUNT1 * StockWidgetProvider.XETR_QDVE_BUY_PRICE1) +
-                                         (StockWidgetProvider.XETR_QDVE_AMOUNT2 * StockWidgetProvider.XETR_QDVE_BUY_PRICE2)
-        }
+        var totalInitialInvestmentCost: Double? = null // For complex stocks
 
-        if (index == 3) { // ABN Stock
-            // Display total shares (amount) formatted to 4 decimal places
-            views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.4f", stockInfo.amount))
-        } else if (index == 4 || index == 5) { // AMS_VUSA Stock or XETR_QDVE Stock
-            // Display total shares (amount) formatted to 0 decimal places
-            views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.0f", stockInfo.amount))
-        } else { // Simple stocks (index 0, 1, 2)
-            views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, stockInfo.priceFormat, stockInfo.buyPrice))
+        when (index) {
+            3 -> { // ABN Stock
+                totalInitialInvestmentCost = (StockWidgetProvider.ABN_AMOUNT1 * StockWidgetProvider.ABN_BUY_PRICE1) +
+                                             (StockWidgetProvider.ABN_AMOUNT2 * StockWidgetProvider.ABN_BUY_PRICE2) +
+                                             (StockWidgetProvider.ABN_AMOUNT3 * StockWidgetProvider.ABN_BUY_PRICE3) +
+                                             (StockWidgetProvider.ABN_AMOUNT4 * StockWidgetProvider.ABN_BUY_PRICE4) +
+                                             (StockWidgetProvider.ABN_AMOUNT5 * StockWidgetProvider.ABN_BUY_PRICE5) +
+                                             (StockWidgetProvider.ABN_AMOUNT6 * StockWidgetProvider.ABN_BUY_PRICE6)
+                views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.4f", stockInfo.amount))
+            }
+            4 -> { // AMS_VUSA Stock
+                totalInitialInvestmentCost = (StockWidgetProvider.AMS_VUSA_AMOUNT1 * StockWidgetProvider.AMS_VUSA_BUY_PRICE1) +
+                                             (StockWidgetProvider.AMS_VUSA_AMOUNT2 * StockWidgetProvider.AMS_VUSA_BUY_PRICE2) +
+                                             (StockWidgetProvider.AMS_VUSA_AMOUNT3 * StockWidgetProvider.AMS_VUSA_BUY_PRICE3)
+                views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.0f", stockInfo.amount))
+            }
+            5 -> { // XETR_QDVE Stock
+                totalInitialInvestmentCost = (StockWidgetProvider.XETR_QDVE_AMOUNT1 * StockWidgetProvider.XETR_QDVE_BUY_PRICE1) +
+                                             (StockWidgetProvider.XETR_QDVE_AMOUNT2 * StockWidgetProvider.XETR_QDVE_BUY_PRICE2)
+                views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.0f", stockInfo.amount))
+            }
+            else -> { // Simple stocks (index 0, 1, 2)
+                views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, stockInfo.priceFormat, stockInfo.buyPrice))
+            }
         }
         
         views.setTextViewText(stockInfo.lastUpdatedViewId, updateTime)
@@ -376,21 +300,25 @@ internal fun updateAppWidget(
             views.setTextColor(stockInfo.profitLossViewId, Color.WHITE)
         } else {
             views.setTextViewText(stockInfo.stockPriceViewId, String.format(Locale.US, stockInfo.priceFormat, currentPrice))
-            if (index != 3 && index != 4 && index != 5) {
+            // Color coding for current price vs buy price (only for simple stocks)
+            if (index <= 2) { // Assuming stocks 0, 1, 2 are simple and others are complex
                  when {
                     currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.GREEN)
                     currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.RED)
                     else -> views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
                 }
+            } else { // For complex stocks, always show white or a default color
+                 views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
             }
+
 
             val profitOrLoss: Double
             if (index == 0) { // Stock 1: XET | CIWP - Special profit/loss calculation
                 val initialInvestmentCostOrig = StockWidgetProvider.XET_CIWP_BUY_PRICE_ORIG * StockWidgetProvider.XET_CIWP_AMOUNT_ORIG
                 val currentMarketValue = currentPrice * stockInfo.amount // stockInfo.amount is XET_CIWP_AMOUNT
                 profitOrLoss = currentMarketValue - initialInvestmentCostOrig
-            } else if (index == 3 || index == 4 || index == 5) { // ABN, AMS_VUSA, or XETR_QDVE
-                 profitOrLoss = (stockInfo.amount * currentPrice) - totalInitialInvestmentCost!!
+            } else if (totalInitialInvestmentCost != null) { // Complex stocks (ABN, AMS_VUSA, XETR_QDVE)
+                 profitOrLoss = (stockInfo.amount * currentPrice) - totalInitialInvestmentCost
             } else { // Standard calculation for other simple stocks (index 1, 2)
                 profitOrLoss = stockInfo.amount * (currentPrice - stockInfo.buyPrice)
             }
@@ -404,15 +332,21 @@ internal fun updateAppWidget(
         }
     }
 
+    // Setup refresh button intent
     val intent = Intent(context, StockWidgetProvider::class.java).apply {
         action = StockWidgetProvider.ACTION_MANUAL_REFRESH
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
     }
+    val pendingIntentFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    } else {
+        PendingIntent.FLAG_UPDATE_CURRENT
+    }
     val pendingIntent = PendingIntent.getBroadcast(
         context,
-        appWidgetId,
+        appWidgetId, // Use appWidgetId as requestCode to ensure uniqueness for each widget instance
         intent,
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        pendingIntentFlag
     )
     views.setOnClickPendingIntent(R.id.refresh_button, pendingIntent)
 
