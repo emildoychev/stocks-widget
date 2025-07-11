@@ -37,7 +37,7 @@
                     android:id="@+id/stock_label_textview"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="S3CO 4.5k"
+                    android:text="CIWP 2.6k"
                     android:textColor="#FFFFFF"
                     android:textSize="11sp"
                     android:textStyle="bold"
