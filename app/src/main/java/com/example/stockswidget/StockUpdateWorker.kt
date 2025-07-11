@@ -51,7 +51,7 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
 
         // JSON keys
         private const val JSON_KEY_CLOSE = "close"
-        private const val JSON_KEY_LAST_BAR_UPDATE_TIME = "last_bar_update_time" // Added
+        private const val JSON_KEY_LAST_BAR_UPDATE_TIME = "last_bar_update_time"
         private const val JSON_KEY_QUERY = "query"
         private const val JSON_KEY_VARIABLES = "variables"
         private const val JSON_KEY_DATA = "data"
@@ -60,13 +60,14 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
         private const val JSON_KEY_NAV_PRICES = "navPrices"
         private const val JSON_KEY_ITEMS = "items"
         private const val JSON_KEY_PRICE = "price"
+        private const val JSON_KEY_AS_OF_DATE = "asOfDate" // Added for GraphQL date
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val context = applicationContext
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        val notificationId = System.currentTimeMillis().toInt() // Unique ID for the notification
+        val notificationId = System.currentTimeMillis().toInt()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -82,7 +83,7 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
         val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("Refreshing Widget Data")
             .setContentText("Fetching latest stock prices...")
-            .setSmallIcon(R.drawable.ic_launcher_foreground) // Ensure this drawable exists
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .setAutoCancel(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
@@ -102,66 +103,72 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
         val inputWidgetIds = inputData.getIntArray(KEY_APP_WIDGET_IDS)
 
         val widgetIdsToUpdate: IntArray = if (inputWidgetIds != null && inputWidgetIds.isNotEmpty()) {
-            Log.d(TAG, "Updating specific widget IDs: ${inputWidgetIds.joinToString()}")
             inputWidgetIds
         } else {
             val componentName = ComponentName(context, StockWidgetProvider::class.java)
-            val allWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-            if (allWidgetIds.isEmpty()) {
-                Log.d(TAG, "No AppWidgetIds found for StockWidgetProvider.")
-                return Result.success() // Nothing to do
-            }
-            Log.d(TAG, "Updating all widget IDs for StockWidgetProvider: ${allWidgetIds.joinToString()}")
-            allWidgetIds
+            appWidgetManager.getAppWidgetIds(componentName).takeIf { it.isNotEmpty() }
+                ?: return Result.success().also { Log.d(TAG, "No AppWidgetIds found.") }
         }
 
-        if (widgetIdsToUpdate.isEmpty()) {
-            Log.w(TAG, "No AppWidgetIds found to update.")
-            return Result.success() // Nothing to do if no widgets
-        }
-        
         Log.d(TAG, "Updating widgets: ${widgetIdsToUpdate.joinToString()}")
-
-        widgetIdsToUpdate.forEach { appWidgetId ->
-            showLoadingState(context, appWidgetManager, appWidgetId)
-        }
+        widgetIdsToUpdate.forEach { showLoadingState(context, appWidgetManager, it) }
 
         val fetchedPrices = mutableListOf<Double>()
-        val fetchedUpdateTimestampsAsLongs = mutableListOf<Long?>() // To store raw timestamps
+        val fetchedTimeData = mutableListOf<Any?>() // Can store Long? (timestamp) or String? (asOfDate)
 
         try {
-            for (stock in StockWidgetProvider.stocks) {
+            StockWidgetProvider.stocks.forEachIndexed { index, stock ->
                 if (stock.isGraphQL) {
-                    val price = fetchGraphQLPrice(stock.apiUrl, stock.graphQLQuery!!, stock.graphQLVariables!!)
+                    // Assuming ABN is at index 3 and is the only one providing asOfDate this way
+                    val (price, asOfDate) = fetchGraphQLPrice(stock.apiUrl, stock.graphQLQuery!!, stock.graphQLVariables!!)
                     fetchedPrices.add(price)
-                    fetchedUpdateTimestampsAsLongs.add(null) // GraphQL doesn\'t provide this specific timestamp
+                    if (index == 3) { // ABN stock index
+                        fetchedTimeData.add(asOfDate)
+                    } else {
+                        fetchedTimeData.add(null) // Other GraphQL stocks might not have/need this
+                    }
                 } else {
                     val (price, timestamp) = fetchPrice(stock.apiUrl)
                     fetchedPrices.add(price)
-                    fetchedUpdateTimestampsAsLongs.add(timestamp)
+                    fetchedTimeData.add(timestamp)
                 }
             }
 
-            val formattedUpdateTimes = fetchedUpdateTimestampsAsLongs.map { timestamp ->
-                if (timestamp != null) {
-                    try {
-                        val date = Date(timestamp * 1000L) // Convert Unix seconds to milliseconds
-                        val sdf = SimpleDateFormat("h:mm a", Locale.getDefault()) // Changed to AM/PM format, no leading zero for hour
-                        sdf.timeZone = TimeZone.getDefault() // Use device\'s default timezone
-                        sdf.format(date)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error formatting timestamp $timestamp: ${e.message}", e)
-                        "N/A"
+            val formattedUpdateTimes = fetchedTimeData.mapIndexed { index, timeData ->
+                when (timeData) {
+                    is String -> { // Handles asOfDate for ABN (index 3)
+                        if (index == 3) {
+                            try {
+                                val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                                val outputFormat = SimpleDateFormat("dd.MM", Locale.getDefault()) // Changed format here
+                                outputFormat.timeZone = TimeZone.getDefault() // Ensure correct timezone
+                                val date = inputFormat.parse(timeData)
+                                if (date != null) outputFormat.format(date) else "N/A"
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error formatting asOfDate '$timeData': ${e.message}", e)
+                                "N/A"
+                            }
+                        } else {
+                             "N/A" // Should not happen if only ABN provides String date
+                        }
                     }
-                } else {
-                    "N/A" // For GraphQL or missing timestamps
+                    is Long -> { // Handles Unix timestamp for TradingView APIs
+                        try {
+                            val date = Date(timeData * 1000L)
+                            val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
+                            sdf.timeZone = TimeZone.getDefault()
+                            sdf.format(date)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error formatting timestamp $timeData: ${e.message}", e)
+                            "N/A"
+                        }
+                    }
+                    else -> "N/A" // For null or unexpected types
                 }
             }
 
             withContext(Dispatchers.Main) {
                 widgetIdsToUpdate.forEach { appWidgetId ->
-                    Log.d(TAG, "Applying final update to widget ID $appWidgetId")
-                    // Pass the list of formatted times to updateAppWidget
                     updateAppWidget(context, appWidgetManager, appWidgetId, fetchedPrices, formattedUpdateTimes)
                 }
             }
@@ -169,14 +176,12 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
             return Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Error during stock data fetching or widget update: ${e.message}", e)
-            // Attempt to clear loading state on failure for affected widgets
             widgetIdsToUpdate.forEach { appWidgetId ->
                  try {
                     val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
                     views.setViewVisibility(R.id.loading_indicator, View.GONE)
                     views.setViewVisibility(R.id.content_container, View.VISIBLE)
-                    // You might want to set text to "Error" or "N/A" here for all fields
-                    appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views) // Use partiallyUpdate to avoid full re-layout if not needed
+                    appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
                  } catch (re: Exception) {
                      Log.e(TAG, "Error resetting widget $appWidgetId to non-loading state after failure", re)
                  }
@@ -186,12 +191,9 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
     }
 
     private fun showLoadingState(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
-        Log.d(TAG, "Showing loading state for widget ID: $appWidgetId")
         val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
-        
         views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
         views.setViewVisibility(R.id.content_container, View.INVISIBLE)
-
         try {
             appWidgetManager.updateAppWidget(appWidgetId, views)
         } catch (e: Exception) {
@@ -199,37 +201,35 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
         }
     }
 
-    // Changed return type to Pair<Double, Long?>
     private suspend fun fetchPrice(apiUrl: String): Pair<Double, Long?> {
-        Log.d(TAG, "Fetching data for URL: $apiUrl")
         return try {
             val jsonString = withContext(Dispatchers.IO) { URL(apiUrl).readText() }
             val jsonObject = JSONObject(jsonString)
             val price = jsonObject.optDouble(JSON_KEY_CLOSE, Double.NaN)
             val timestamp = if (jsonObject.has(JSON_KEY_LAST_BAR_UPDATE_TIME)) {
-                jsonObject.optLong(JSON_KEY_LAST_BAR_UPDATE_TIME, -1L) // Get as Long
+                jsonObject.optLong(JSON_KEY_LAST_BAR_UPDATE_TIME, -1L)
             } else {
-                -1L // Indicate missing
+                -1L
             }
-            Log.d(TAG, "Fetched price: $price, timestamp: $timestamp for $apiUrl")
-            Pair(price, if(timestamp == -1L) null else timestamp)
+            Pair(price, if (timestamp == -1L) null else timestamp)
         } catch (e: Exception) {
             Log.e(TAG, "fetchPrice Error for $apiUrl: ${e.message}", e)
-            Pair(Double.NaN, null) // Return NaN for price and null for timestamp on error
+            Pair(Double.NaN, null)
         }
     }
 
+    // Changed return type to Pair<Double, String?> to include asOfDate
     private suspend fun fetchGraphQLPrice(
         apiUrl: String,
         query: String,
         variables: JSONObject
-    ): Double { // GraphQL price fetching remains the same, no timestamp from this source
+    ): Pair<Double, String?> {
         var connection: HttpURLConnection? = null
-        Log.d(TAG, "Fetching GraphQL price for URL: $apiUrl")
         return try {
             withContext(Dispatchers.IO) {
                 val url = URL(apiUrl)
                 connection = url.openConnection() as HttpURLConnection
+                // ... (connection setup remains the same) ...
                 connection!!.requestMethod = HTTP_METHOD_POST
                 connection!!.setRequestProperty(HEADER_CONTENT_TYPE, APPLICATION_JSON)
                 connection!!.setRequestProperty(HEADER_ACCEPT, APPLICATION_JSON)
@@ -238,29 +238,14 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
                 connection!!.connectTimeout = CONNECT_TIMEOUT_MS
                 connection!!.readTimeout = READ_TIMEOUT_MS
 
-                val payload = JSONObject()
-                payload.put(JSON_KEY_QUERY, query)
-                payload.put(JSON_KEY_VARIABLES, variables)
-                
-                val escapedPayload = payload.toString().replace("\'","\\\'\\\'\\\'")
-                val curlCommand = """
-                    curl -X ${connection!!.requestMethod} "$apiUrl" \
-                    -H "$HEADER_CONTENT_TYPE: ${connection!!.getRequestProperty(HEADER_CONTENT_TYPE)}" \
-                    -H "$HEADER_ACCEPT: ${connection!!.getRequestProperty(HEADER_ACCEPT)}" \
-                    -H "$HEADER_X_CONSUMER_ID: ${connection!!.getRequestProperty(HEADER_X_CONSUMER_ID)}" \
-                    -d \'$escapedPayload\'
-                """.trimIndent()
-                Log.d(TAG, "Equivalent cURL command (from worker):\n$curlCommand")
-
-                Log.d(TAG, "GraphQL Payload for $apiUrl: ${payload.toString()}")
-                OutputStreamWriter(connection!!.outputStream, "UTF-8").use { writer ->
-                    writer.write(payload.toString())
-                    writer.flush()
+                val payload = JSONObject().apply {
+                    put(JSON_KEY_QUERY, query)
+                    put(JSON_KEY_VARIABLES, variables)
                 }
+                
+                OutputStreamWriter(connection!!.outputStream, "UTF-8").use { it.write(payload.toString()); it.flush() }
 
                 val responseCode = connection!!.responseCode
-                Log.d(TAG, "GraphQL Response Code for $apiUrl: $responseCode")
-
                 val streamReader = if (responseCode == HttpURLConnection.HTTP_OK) {
                     InputStreamReader(connection!!.inputStream)
                 } else {
@@ -269,7 +254,6 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
 
                 BufferedReader(streamReader).use { reader ->
                     val responseString = reader.readText()
-                    Log.d(TAG, "GraphQL Raw Response for $apiUrl: $responseString")
                     if (responseCode == HttpURLConnection.HTTP_OK) {
                         val jsonResponse = JSONObject(responseString)
                         val dataObject = jsonResponse.optJSONObject(JSON_KEY_DATA)
@@ -281,18 +265,20 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
                             val itemsArray = navPrices?.optJSONArray(JSON_KEY_ITEMS)
                             if (itemsArray != null && itemsArray.length() > 0) {
                                 val firstItem = itemsArray.optJSONObject(0)
-                                return@withContext firstItem?.optDouble(JSON_KEY_PRICE, Double.NaN) ?: Double.NaN
+                                val price = firstItem?.optDouble(JSON_KEY_PRICE, Double.NaN) ?: Double.NaN
+                                val asOfDate = firstItem?.optString(JSON_KEY_AS_OF_DATE, null) // Parse asOfDate
+                                return@withContext Pair(price, asOfDate)
                             }
                         }
                     } else {
                         Log.e(TAG, "GraphQL Error for $apiUrl. Response: $responseString")
                     }
                 }
-                Double.NaN
+                Pair(Double.NaN, null) // Default return on error or missing data
             }
         } catch (e: Exception) {
             Log.e(TAG, "fetchGraphQLPrice Error for $apiUrl: ${e.message}", e)
-            Double.NaN
+            Pair(Double.NaN, null)
         } finally {
             connection?.disconnect()
         }
