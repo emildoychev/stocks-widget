@@ -25,6 +25,7 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone // Added for TimeZone
 
 class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
     CoroutineWorker(appContext, workerParams) {
@@ -50,6 +51,7 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
 
         // JSON keys
         private const val JSON_KEY_CLOSE = "close"
+        private const val JSON_KEY_LAST_BAR_UPDATE_TIME = "last_bar_update_time" // Added
         private const val JSON_KEY_QUERY = "query"
         private const val JSON_KEY_VARIABLES = "variables"
         private const val JSON_KEY_DATA = "data"
@@ -120,35 +122,65 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
         
         Log.d(TAG, "Updating widgets: ${widgetIdsToUpdate.joinToString()}")
 
-        // Show loading state for all affected widgets first
         widgetIdsToUpdate.forEach { appWidgetId ->
             showLoadingState(context, appWidgetManager, appWidgetId)
         }
 
-        // Fetch prices
         val fetchedPrices = mutableListOf<Double>()
+        val fetchedUpdateTimestampsAsLongs = mutableListOf<Long?>() // To store raw timestamps
+
         try {
             for (stock in StockWidgetProvider.stocks) {
-                val price = if (stock.isGraphQL) {
-                    fetchGraphQLPrice(stock.apiUrl, stock.graphQLQuery!!, stock.graphQLVariables!!)
+                if (stock.isGraphQL) {
+                    val price = fetchGraphQLPrice(stock.apiUrl, stock.graphQLQuery!!, stock.graphQLVariables!!)
+                    fetchedPrices.add(price)
+                    fetchedUpdateTimestampsAsLongs.add(null) // GraphQL doesn\'t provide this specific timestamp
                 } else {
-                    fetchPrice(stock.apiUrl)
+                    val (price, timestamp) = fetchPrice(stock.apiUrl)
+                    fetchedPrices.add(price)
+                    fetchedUpdateTimestampsAsLongs.add(timestamp)
                 }
-                fetchedPrices.add(price)
             }
-            val currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
-            // Update each widget
-            withContext(Dispatchers.Main) { // UI updates should be on the main thread
+            val formattedUpdateTimes = fetchedUpdateTimestampsAsLongs.map { timestamp ->
+                if (timestamp != null) {
+                    try {
+                        val date = Date(timestamp * 1000L) // Convert Unix seconds to milliseconds
+                        val sdf = SimpleDateFormat("h:mm a", Locale.getDefault()) // Changed to AM/PM format, no leading zero for hour
+                        sdf.timeZone = TimeZone.getDefault() // Use device\'s default timezone
+                        sdf.format(date)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error formatting timestamp $timestamp: ${e.message}", e)
+                        "N/A"
+                    }
+                } else {
+                    "N/A" // For GraphQL or missing timestamps
+                }
+            }
+
+            withContext(Dispatchers.Main) {
                 widgetIdsToUpdate.forEach { appWidgetId ->
                     Log.d(TAG, "Applying final update to widget ID $appWidgetId")
-                    updateAppWidget(context, appWidgetManager, appWidgetId, fetchedPrices, currentTime)
+                    // Pass the list of formatted times to updateAppWidget
+                    updateAppWidget(context, appWidgetManager, appWidgetId, fetchedPrices, formattedUpdateTimes)
                 }
             }
             Log.d(TAG, "Work finished. Widgets updated.")
             return Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Error during stock data fetching or widget update: ${e.message}", e)
+            // Attempt to clear loading state on failure for affected widgets
+            widgetIdsToUpdate.forEach { appWidgetId ->
+                 try {
+                    val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
+                    views.setViewVisibility(R.id.loading_indicator, View.GONE)
+                    views.setViewVisibility(R.id.content_container, View.VISIBLE)
+                    // You might want to set text to "Error" or "N/A" here for all fields
+                    appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views) // Use partiallyUpdate to avoid full re-layout if not needed
+                 } catch (re: Exception) {
+                     Log.e(TAG, "Error resetting widget $appWidgetId to non-loading state after failure", re)
+                 }
+            }
             return Result.failure()
         }
     }
@@ -157,9 +189,7 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
         Log.d(TAG, "Showing loading state for widget ID: $appWidgetId")
         val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
         
-        // Make loading indicator visible
         views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
-        // Hide main content container (which includes all stock views and dividers)
         views.setViewVisibility(R.id.content_container, View.INVISIBLE)
 
         try {
@@ -169,15 +199,23 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
         }
     }
 
-    private suspend fun fetchPrice(apiUrl: String): Double {
-        Log.d(TAG, "Fetching price for URL: $apiUrl")
+    // Changed return type to Pair<Double, Long?>
+    private suspend fun fetchPrice(apiUrl: String): Pair<Double, Long?> {
+        Log.d(TAG, "Fetching data for URL: $apiUrl")
         return try {
             val jsonString = withContext(Dispatchers.IO) { URL(apiUrl).readText() }
             val jsonObject = JSONObject(jsonString)
-            jsonObject.getDouble(JSON_KEY_CLOSE)
+            val price = jsonObject.optDouble(JSON_KEY_CLOSE, Double.NaN)
+            val timestamp = if (jsonObject.has(JSON_KEY_LAST_BAR_UPDATE_TIME)) {
+                jsonObject.optLong(JSON_KEY_LAST_BAR_UPDATE_TIME, -1L) // Get as Long
+            } else {
+                -1L // Indicate missing
+            }
+            Log.d(TAG, "Fetched price: $price, timestamp: $timestamp for $apiUrl")
+            Pair(price, if(timestamp == -1L) null else timestamp)
         } catch (e: Exception) {
             Log.e(TAG, "fetchPrice Error for $apiUrl: ${e.message}", e)
-            Double.NaN // Return NaN on error
+            Pair(Double.NaN, null) // Return NaN for price and null for timestamp on error
         }
     }
 
@@ -185,7 +223,7 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
         apiUrl: String,
         query: String,
         variables: JSONObject
-    ): Double {
+    ): Double { // GraphQL price fetching remains the same, no timestamp from this source
         var connection: HttpURLConnection? = null
         Log.d(TAG, "Fetching GraphQL price for URL: $apiUrl")
         return try {
@@ -204,15 +242,13 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
                 payload.put(JSON_KEY_QUERY, query)
                 payload.put(JSON_KEY_VARIABLES, variables)
                 
-                // The cURL logging can be very verbose, consider its necessity or log level
-                // For brevity in this refactoring, I'm keeping it but you might want to adjust
-                val escapedPayload = payload.toString().replace("'","\'\'\'") // Escape for shell
+                val escapedPayload = payload.toString().replace("\'","\\\'\\\'\\\'")
                 val curlCommand = """
                     curl -X ${connection!!.requestMethod} "$apiUrl" \
                     -H "$HEADER_CONTENT_TYPE: ${connection!!.getRequestProperty(HEADER_CONTENT_TYPE)}" \
                     -H "$HEADER_ACCEPT: ${connection!!.getRequestProperty(HEADER_ACCEPT)}" \
                     -H "$HEADER_X_CONSUMER_ID: ${connection!!.getRequestProperty(HEADER_X_CONSUMER_ID)}" \
-                    -d '$escapedPayload'
+                    -d \'$escapedPayload\'
                 """.trimIndent()
                 Log.d(TAG, "Equivalent cURL command (from worker):\n$curlCommand")
 

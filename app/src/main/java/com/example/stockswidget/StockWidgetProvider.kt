@@ -20,8 +20,8 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
+// import java.text.SimpleDateFormat // No longer needed here
+// import java.util.Date // No longer needed here
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -50,9 +50,9 @@ class StockWidgetProvider : AppWidgetProvider() {
         private const val WORK_REPEAT_INTERVAL_MINUTES = 30L
 
         // API URLs
-        internal const val API_URL_XETR_CIWP = "https://scanner.tradingview.com/symbol?symbol=XETR%3ACIWP&fields=close"
-        internal const val API_URL_EURONEXT_3AMD = "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3A3AMD&fields=close"
-        internal const val API_URL_XETR_COMS = "https://scanner.tradingview.com/symbol?symbol=XETR%3ACOMS&fields=close"
+        internal const val API_URL_XETR_CIWP = "https://scanner.tradingview.com/symbol?symbol=XETR%3ACIWP&fields=close%2Clast_bar_update_time"
+        internal const val API_URL_EURONEXT_3AMD = "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3A3AMD&fields=close%2Clast_bar_update_time"
+        internal const val API_URL_XETR_COMS = "https://scanner.tradingview.com/symbol?symbol=XETR%3ACOMS&fields=close%2Clast_bar_update_time"
         // ABN_GRAPHQL_URL, AMS_VUSA_API_URL, XETR_QDVE_API_URL are defined below with their respective stock details
 
         // Stock 1: XET | CIWP
@@ -110,14 +110,14 @@ class StockWidgetProvider : AppWidgetProvider() {
         internal const val AMS_VUSA_AMOUNT2 = 78.0
         internal const val AMS_VUSA_BUY_PRICE3 = 98.0
         internal const val AMS_VUSA_AMOUNT3 = 27.0
-        internal const val AMS_VUSA_API_URL = "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3AVUSA&fields=close"
+        internal const val AMS_VUSA_API_URL = "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3AVUSA&fields=close%2Clast_bar_update_time"
 
         // Stock 6: XETR | QDVE
         internal const val XETR_QDVE_BUY_PRICE1 = 28.065
         internal const val XETR_QDVE_AMOUNT1 = 884.0
         internal const val XETR_QDVE_BUY_PRICE2 = 0.0
         internal const val XETR_QDVE_AMOUNT2 = 0.0
-        internal const val XETR_QDVE_API_URL = "https://scanner.tradingview.com/symbol?symbol=XETR%3AQDVE&fields=close"
+        internal const val XETR_QDVE_API_URL = "https://scanner.tradingview.com/symbol?symbol=XETR%3AQDVE&fields=close%2Clast_bar_update_time"
 
 
         internal val stocks = listOf(
@@ -215,10 +215,6 @@ class StockWidgetProvider : AppWidgetProvider() {
 
     override fun onEnabled(context: Context) {
         Log.d(TAG, "onEnabled: First widget instance created. Scheduling initial work.")
-        // This is a good place to schedule the first update immediately if desired,
-        // or ensure the periodic work is scheduled.
-        // For simplicity, onUpdate will handle the periodic scheduling when the first widget is added.
-        // If you want an immediate update on first placement, you can enqueue a OneTimeWorkRequest here.
          val appWidgetManager = AppWidgetManager.getInstance(context)
          val thisAppWidget = ComponentName(context.packageName, javaClass.name)
          val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
@@ -229,7 +225,8 @@ class StockWidgetProvider : AppWidgetProvider() {
             val oneTimeWorkRequest = OneTimeWorkRequestBuilder<StockUpdateWorker>()
                 .setConstraints(constraints)
                  .setInputData(workDataOf(StockUpdateWorker.KEY_APP_WIDGET_IDS to appWidgetIds))
-                .build() // Consider also making this expedited if needed on first enable
+                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST) // Added Expedited Policy
+                .build()
             WorkManager.getInstance(context).enqueue(oneTimeWorkRequest)
          }
     }
@@ -240,23 +237,20 @@ class StockWidgetProvider : AppWidgetProvider() {
     }
 }
 
-// This function remains top-level or can be moved to a companion object if preferred by worker.
-// It's used by StockUpdateWorker to update the widget UI.
 internal fun updateAppWidget(
     context: Context,
     appWidgetManager: AppWidgetManager,
     appWidgetId: Int,
     prices: List<Double>,
-    updateTime: String
+    updateTimes: List<String> // Changed parameter name and type
 ) {
-    Log.d("updateAppWidget", "Updating widget $appWidgetId with ${prices.size} prices at $updateTime")
+    Log.d("updateAppWidget", "Updating widget $appWidgetId with ${prices.size} prices. Update times: ${updateTimes.joinToString()}")
     val views = RemoteViews(context.packageName, R.layout.stock_widget_layout)
 
-    // Resetting visibility for all views initially to handle cases where some might have been GONE
     views.setViewVisibility(R.id.loading_indicator, View.GONE)
-    views.setViewVisibility(R.id.content_container, View.VISIBLE) // Make sure content container is visible
+    views.setViewVisibility(R.id.content_container, View.VISIBLE)
     
-    val dividerIds = listOf(R.id.divider_line, R.id.divider_line_2, R.id.divider_line_3, R.id.divider_line_4, R.id.divider_line_5) // Assuming up to 6 stocks
+    val dividerIds = listOf(R.id.divider_line, R.id.divider_line_2, R.id.divider_line_3, R.id.divider_line_4, R.id.divider_line_5)
     dividerIds.forEachIndexed { index, dividerId ->
         views.setViewVisibility(dividerId, if (index < StockWidgetProvider.stocks.size -1) View.VISIBLE else View.GONE)
     }
@@ -268,10 +262,10 @@ internal fun updateAppWidget(
         views.setViewVisibility(stockInfo.buyPriceViewId, View.VISIBLE)
         views.setViewVisibility(stockInfo.stockPriceViewId, View.VISIBLE)
 
-        var totalInitialInvestmentCost: Double? = null // For complex stocks
+        var totalInitialInvestmentCost: Double? = null
 
         when (index) {
-            3 -> { // ABN Stock
+            3 -> { 
                 totalInitialInvestmentCost = (StockWidgetProvider.ABN_AMOUNT1 * StockWidgetProvider.ABN_BUY_PRICE1) +
                                              (StockWidgetProvider.ABN_AMOUNT2 * StockWidgetProvider.ABN_BUY_PRICE2) +
                                              (StockWidgetProvider.ABN_AMOUNT3 * StockWidgetProvider.ABN_BUY_PRICE3) +
@@ -280,23 +274,25 @@ internal fun updateAppWidget(
                                              (StockWidgetProvider.ABN_AMOUNT6 * StockWidgetProvider.ABN_BUY_PRICE6)
                 views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.4f", stockInfo.amount))
             }
-            4 -> { // AMS_VUSA Stock
+            4 -> { 
                 totalInitialInvestmentCost = (StockWidgetProvider.AMS_VUSA_AMOUNT1 * StockWidgetProvider.AMS_VUSA_BUY_PRICE1) +
                                              (StockWidgetProvider.AMS_VUSA_AMOUNT2 * StockWidgetProvider.AMS_VUSA_BUY_PRICE2) +
                                              (StockWidgetProvider.AMS_VUSA_AMOUNT3 * StockWidgetProvider.AMS_VUSA_BUY_PRICE3)
                 views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.0f", stockInfo.amount))
             }
-            5 -> { // XETR_QDVE Stock
+            5 -> { 
                 totalInitialInvestmentCost = (StockWidgetProvider.XETR_QDVE_AMOUNT1 * StockWidgetProvider.XETR_QDVE_BUY_PRICE1) +
                                              (StockWidgetProvider.XETR_QDVE_AMOUNT2 * StockWidgetProvider.XETR_QDVE_BUY_PRICE2)
                 views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, "%.0f", stockInfo.amount))
             }
-            else -> { // Simple stocks (index 0, 1, 2)
+            else -> { 
                 views.setTextViewText(stockInfo.buyPriceViewId, String.format(Locale.US, stockInfo.priceFormat, stockInfo.buyPrice))
             }
         }
         
-        views.setTextViewText(stockInfo.lastUpdatedViewId, updateTime)
+        // Use the specific update time for this stock item
+        val stockUpdateTime = updateTimes.getOrElse(index) { "N/A" } 
+        views.setTextViewText(stockInfo.lastUpdatedViewId, stockUpdateTime)
 
         val currentPrice = prices.getOrElse(index) { Double.NaN }
 
@@ -305,28 +301,30 @@ internal fun updateAppWidget(
             views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
             views.setTextViewText(stockInfo.profitLossViewId, "N/A")
             views.setTextColor(stockInfo.profitLossViewId, Color.WHITE)
+            // Ensure lastUpdatedViewId is also set to N/A if price is N/A and we didn't get a specific time
+            if (stockUpdateTime == "N/A") {
+                 views.setTextViewText(stockInfo.lastUpdatedViewId, "N/A")
+            }
         } else {
             views.setTextViewText(stockInfo.stockPriceViewId, String.format(Locale.US, stockInfo.priceFormat, currentPrice))
-            // Color coding for current price vs buy price (only for simple stocks)
-            if (index <= 2) { // Assuming stocks 0, 1, 2 are simple and others are complex
+            if (index <= 2) { 
                  when {
                     currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.GREEN)
                     currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.RED)
                     else -> views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
                 }
-            } else { // For complex stocks, always show white or a default color
+            } else { 
                  views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
             }
 
-
             val profitOrLoss: Double
-            if (index == 0) { // Stock 1: XET | CIWP - Special profit/loss calculation
+            if (index == 0) { 
                 val initialInvestmentCostOrig = StockWidgetProvider.XET_CIWP_BUY_PRICE_ORIG * StockWidgetProvider.XET_CIWP_AMOUNT_ORIG
-                val currentMarketValue = currentPrice * stockInfo.amount // stockInfo.amount is XET_CIWP_AMOUNT
+                val currentMarketValue = currentPrice * stockInfo.amount 
                 profitOrLoss = currentMarketValue - initialInvestmentCostOrig
-            } else if (totalInitialInvestmentCost != null) { // Complex stocks (ABN, AMS_VUSA, XETR_QDVE)
+            } else if (totalInitialInvestmentCost != null) { 
                  profitOrLoss = (stockInfo.amount * currentPrice) - totalInitialInvestmentCost
-            } else { // Standard calculation for other simple stocks (index 1, 2)
+            } else { 
                 profitOrLoss = stockInfo.amount * (currentPrice - stockInfo.buyPrice)
             }
             
@@ -339,7 +337,6 @@ internal fun updateAppWidget(
         }
     }
 
-    // Setup refresh button intent
     val intent = Intent(context, StockWidgetProvider::class.java).apply {
         action = StockWidgetProvider.ACTION_MANUAL_REFRESH
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -351,7 +348,7 @@ internal fun updateAppWidget(
     }
     val pendingIntent = PendingIntent.getBroadcast(
         context,
-        appWidgetId, // Use appWidgetId as requestCode to ensure uniqueness for each widget instance
+        appWidgetId, 
         intent,
         pendingIntentFlag
     )
