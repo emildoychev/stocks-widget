@@ -12,7 +12,7 @@
         android:layout_alignParentEnd="true"
         android:src="@android:drawable/ic_popup_sync"
         android:contentDescription="Refresh"
-        android:background="@android:color/transparent"
+        android:background="@drawable/refresh_button_selector"
         android:scaleType="fitCenter" />
 
     <RelativeLayout
