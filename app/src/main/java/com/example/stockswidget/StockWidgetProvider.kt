@@ -49,6 +49,10 @@ class StockWidgetProvider : AppWidgetProvider() {
         private const val STOCK_UPDATE_WORK_NAME = "com.example.stockswidget.STOCK_UPDATE_WORK"
         private const val WORK_REPEAT_INTERVAL_MINUTES = 30L
 
+        // Custom Colors
+        internal val CUSTOM_GREEN = Color.parseColor("#068d0a") // Lush Garden, #046307 Emerald Green
+        internal val CUSTOM_RED = Color.parseColor("#b70d08") // Federation of Love, #8d0a06 Roasted Pepper,
+
         // API URLs
         internal const val API_URL_XETR_CIWP = "https://scanner.tradingview.com/symbol?symbol=XETR%3ACIWP&fields=close%2Clast_bar_update_time"
         internal const val API_URL_EURONEXT_3AMD = "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3A3AMD&fields=close%2Clast_bar_update_time"
@@ -309,8 +313,8 @@ internal fun updateAppWidget(
             views.setTextViewText(stockInfo.stockPriceViewId, String.format(Locale.US, stockInfo.priceFormat, currentPrice))
             if (index <= 2) { 
                  when {
-                    currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.GREEN)
-                    currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, Color.RED)
+                    currentPrice > stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, StockWidgetProvider.CUSTOM_GREEN)
+                    currentPrice < stockInfo.buyPrice -> views.setTextColor(stockInfo.stockPriceViewId, StockWidgetProvider.CUSTOM_RED)
                     else -> views.setTextColor(stockInfo.stockPriceViewId, Color.WHITE)
                 }
             } else { 
@@ -330,8 +334,8 @@ internal fun updateAppWidget(
             
             views.setTextViewText(stockInfo.profitLossViewId, String.format(Locale.US, "€%,.2f", profitOrLoss))
             when {
-                profitOrLoss > 0 -> views.setTextColor(stockInfo.profitLossViewId, Color.GREEN)
-                profitOrLoss < 0 -> views.setTextColor(stockInfo.profitLossViewId, Color.RED)
+                profitOrLoss > 0 -> views.setTextColor(stockInfo.profitLossViewId, StockWidgetProvider.CUSTOM_GREEN)
+                profitOrLoss < 0 -> views.setTextColor(stockInfo.profitLossViewId, StockWidgetProvider.CUSTOM_RED)
                 else -> views.setTextColor(stockInfo.profitLossViewId, Color.WHITE)
             }
         }
