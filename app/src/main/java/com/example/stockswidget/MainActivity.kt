@@ -1,17 +1,18 @@
 package com.example.stockswidget
 
 import android.os.Bundle
-import android.util.Log // Added import
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
-// ... other existing imports
-import androidx.compose.foundation.lazy.LazyColumn // Ensuring this is imported
-import androidx.compose.foundation.lazy.items // Ensuring this is imported
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete // Added
+import androidx.compose.material.icons.filled.Edit // Added
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,10 +43,9 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-// Define a simple data class to hold the VUSA data
 data class VusaData(
-    val closePrice: String = "Loading...", // Formatted as "€X.XX"
-    val rawClosePrice: Double = 0.0, // Unformatted close price
+    val closePrice: String = "Loading...",
+    val rawClosePrice: Double = 0.0,
     val lastUpdateTime: String = "Loading..."
 )
 
@@ -54,11 +54,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Get DAO from Application
         val application = application as StocksWidgetApplication
         val vusaTransactionDao = application.vusaTransactionDao
-
-        // Create ViewModel using Factory
         val viewModelFactory = VusaViewModelFactory(vusaTransactionDao)
         val vusaViewModel = ViewModelProvider(this, viewModelFactory)[VusaViewModel::class.java]
 
@@ -76,11 +73,10 @@ class MainActivity : ComponentActivity() {
                             isLoading = true
                             errorMessage = null
                             try {
-                                val fetchedData = fetchVusaPriceData()
-                                vusaData = fetchedData
+                                vusaData = fetchVusaPriceData()
                             } catch (e: Exception) {
                                 errorMessage = "Error: ${e.message}"
-                                vusaData = VusaData("N/A", 0.0, "N/A") // Show N/A on error
+                                vusaData = VusaData("N/A", 0.0, "N/A")
                             } finally {
                                 isLoading = false
                             }
@@ -90,7 +86,7 @@ class MainActivity : ComponentActivity() {
                     if (showVusaScreen) {
                         VusaScreen(
                             modifier = Modifier.padding(innerPadding),
-                            vusaViewModel = vusaViewModel, // Pass ViewModel
+                            vusaViewModel = vusaViewModel,
                             vusaData = vusaData,
                             isLoading = isLoading,
                             errorMessage = errorMessage,
@@ -98,16 +94,14 @@ class MainActivity : ComponentActivity() {
                             onBack = { showVusaScreen = false }
                         )
                         LaunchedEffect(Unit) {
-                           if (vusaData == null && !isLoading) {
-                               fetchVusaData()
-                           }
+                            if (vusaData == null && !isLoading) {
+                                fetchVusaData()
+                            }
                         }
                     } else {
                         MainScreen(
                             modifier = Modifier.padding(innerPadding),
-                            onShowVusaClick = {
-                                showVusaScreen = true
-                            }
+                            onShowVusaClick = { showVusaScreen = true }
                         )
                     }
                 }
@@ -151,7 +145,7 @@ suspend fun fetchVusaPriceData(): VusaData {
                     try {
                         val date = Date(lastBarUpdateTime * 1000L)
                         val sdf = SimpleDateFormat("h:mm a", Locale.US)
-                        sdf.timeZone = TimeZone.getDefault()
+                        sdf.timeZone = TimeZone.getDefault() // Use device's default timezone
                         sdf.format(date)
                     } catch (e: Exception) {
                         "Time Format Error"
@@ -161,8 +155,6 @@ suspend fun fetchVusaPriceData(): VusaData {
             } else {
                 throw Exception("HTTP error code: $responseCode")
             }
-        } catch (e: Exception) {
-            throw e
         } finally {
             connection?.disconnect()
         }
@@ -178,16 +170,14 @@ fun MainScreen(modifier: Modifier = Modifier, onShowVusaClick: () -> Unit) {
     ) {
         Greeting(name = "Widget")
         Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onShowVusaClick) {
-            Text("VUSA")
-        }
+        Button(onClick = onShowVusaClick) { Text("VUSA") }
     }
 }
 
 @Composable
 fun VusaScreen(
     modifier: Modifier = Modifier,
-    vusaViewModel: VusaViewModel, // Added ViewModel parameter
+    vusaViewModel: VusaViewModel,
     vusaData: VusaData?,
     isLoading: Boolean,
     errorMessage: String?,
@@ -195,14 +185,16 @@ fun VusaScreen(
     onBack: () -> Unit
 ) {
     var amountInput by remember { mutableStateOf("") }
-    var priceInput by remember { mutableStateOf("") } // User's buy price
+    var priceInput by remember { mutableStateOf("") }
     var calculatedTotal by remember { mutableStateOf<String?>(null) }
     var showSaveConfirmation by remember { mutableStateOf(false) }
 
-    // Collect transactions from ViewModel
     val transactions by vusaViewModel.allTransactions.collectAsState(initial = emptyList())
 
-    // Log transactions whenever they change
+    // State for managing dialogs
+    var showDeleteConfirmationDialog by remember { mutableStateOf<VusaTransaction?>(null) }
+    var transactionToEdit by remember { mutableStateOf<VusaTransaction?>(null) }
+
     LaunchedEffect(transactions) {
         Log.d("VusaScreen", "Transactions list updated. Size: ${transactions.size}")
         if (transactions.isNotEmpty()) {
@@ -214,11 +206,8 @@ fun VusaScreen(
         }
     }
 
-
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
@@ -240,6 +229,7 @@ fun VusaScreen(
             Text("Last Update: ${vusaData.lastUpdateTime}", style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Input fields and Save button Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -248,20 +238,210 @@ fun VusaScreen(
                 OutlinedTextField(
                     value = amountInput,
                     onValueChange = { newText ->
-                        val filtered = newText.foldIndexed("") { _: Int, acc: String, char: Char ->
-                            if (char.isDigit()) {
-                                acc + char
-                            } else if ((char == '.' || char == ',') && !acc.contains('.')) {
-                                acc + '.' // Normalize to period
-                            } else {
-                                acc
-                            }
+                        val filtered = newText.foldIndexed("") { _, acc, char ->
+                            if (char.isDigit()) acc + char
+                            else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
+                            else acc
                         }
                         val parts = filtered.split('.', limit = 2)
                         val integerPart = parts[0]
                         val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
-
                         amountInput = when {
+                            fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
+                            integerPart.isEmpty() && filtered.contains('.') -> "0."
+                            else -> integerPart
+                        }
+                    },
+                    label = { Text("Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
+                    trailingIcon = { if (amountInput.isNotEmpty()) IconButton(onClick = { amountInput = "" }) { Icon(Icons.Filled.Clear, "Clear", Modifier.size(18.dp)) } }
+                )
+                OutlinedTextField(
+                    value = priceInput,
+                    onValueChange = { newText ->
+                        val filtered = newText.foldIndexed("") { _, acc, char ->
+                            if (char.isDigit()) acc + char
+                            else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
+                            else acc
+                        }
+                        val parts = filtered.split('.', limit = 2)
+                        val integerPart = parts[0]
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
+                        priceInput = when {
+                            fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
+                            integerPart.isEmpty() && filtered.contains('.') -> "0."
+                            else -> integerPart
+                        }
+                    },
+                    label = { Text("Price") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
+                    trailingIcon = { if (priceInput.isNotEmpty()) IconButton(onClick = { priceInput = "" }) { Icon(Icons.Filled.Clear, "Clear", Modifier.size(18.dp)) } }
+                )
+                Button(
+                    onClick = {
+                        val amount = amountInput.toDoubleOrNull()
+                        val buyPrice = priceInput.toDoubleOrNull()
+                        if (amount != null && buyPrice != null) {
+                            vusaViewModel.insertTransaction(amount = amount, buyPrice = buyPrice)
+                            amountInput = ""; priceInput = ""
+                            showSaveConfirmation = true
+                            val currentClosePrice = vusaData.rawClosePrice
+                            calculatedTotal = if (currentClosePrice != 0.0) {
+                                NumberFormat.getCurrencyInstance(Locale.GERMANY).format(amount * currentClosePrice)
+                            } else "Market data unavailable for current value."
+                        } else {
+                            calculatedTotal = "Invalid input."; showSaveConfirmation = false
+                        }
+                    },
+                    modifier = Modifier.wrapContentWidth(),
+                    enabled = amountInput.isNotBlank() && priceInput.isNotBlank() && !isLoading
+                ) { Text("Save") }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (showSaveConfirmation) {
+                Text("Transaction Saved!", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                calculatedTotal?.let { Text("Calculated Current Value: $it", style = MaterialTheme.typography.titleMedium) }
+            } else if (calculatedTotal != null) {
+                Text(calculatedTotal!!, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (transactions.isNotEmpty()) {
+                Text("Saved Transactions", style = MaterialTheme.typography.headlineSmall)
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    items(transactions, key = { it.id }) { transaction -> // Added key for better performance
+                        TransactionItem(
+                            transaction = transaction,
+                            onEditClick = { transactionToEdit = it },
+                            onDeleteClick = { showDeleteConfirmationDialog = it }
+                        )
+                        Divider()
+                    }
+                }
+            } else {
+                Log.d("VusaScreen", "UI: Transactions list is empty, not showing LazyColumn.")
+                Text("No transactions saved yet.", style = MaterialTheme.typography.bodySmall)
+            }
+             Spacer(modifier = Modifier.weight(0.1f)) // Give some space, but not too much if list is long
+            Button(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
+                Text("Refresh Market Data")
+            }
+        } else {
+            Text("Tap 'Refresh Data' to load market information.")
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = onRefresh) { Text("Refresh Data") }
+        }
+    }
+
+    // Delete Confirmation Dialog
+    showDeleteConfirmationDialog?.let { transactionToDelete ->
+        DeleteConfirmationDialog(
+            transaction = transactionToDelete,
+            onConfirmDelete = {
+                vusaViewModel.deleteTransactionById(transactionToDelete.id)
+                showDeleteConfirmationDialog = null
+            },
+            onDismiss = { showDeleteConfirmationDialog = null }
+        )
+    }
+
+    // Edit Transaction Dialog
+    transactionToEdit?.let { transaction ->
+        EditTransactionDialog(
+            transaction = transaction,
+            onSave = { updatedTransaction ->
+                vusaViewModel.updateTransaction(updatedTransaction)
+                transactionToEdit = null
+            },
+            onDismiss = { transactionToEdit = null }
+        )
+    }
+}
+
+@Composable
+fun TransactionItem(
+    transaction: VusaTransaction,
+    onEditClick: (VusaTransaction) -> Unit,
+    onDeleteClick: (VusaTransaction) -> Unit
+) {
+    Row(
+        modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Amount: ${transaction.amount}", style = MaterialTheme.typography.bodyMedium)
+            Text("Price: €${String.format(Locale.GERMANY, "%.2f", transaction.buyPrice)}", style = MaterialTheme.typography.bodyMedium)
+            Text("Date: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(transaction.transactionTimestamp))}", style = MaterialTheme.typography.bodySmall)
+        }
+        Row {
+            IconButton(onClick = { onEditClick(transaction) }) {
+                Icon(Icons.Filled.Edit, contentDescription = "Edit Transaction")
+            }
+            IconButton(onClick = { onDeleteClick(transaction) }) {
+                Icon(Icons.Filled.Delete, contentDescription = "Delete Transaction")
+            }
+        }
+    }
+}
+
+@Composable
+fun DeleteConfirmationDialog(
+    transaction: VusaTransaction,
+    onConfirmDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Confirm Deletion") },
+        text = { Text("Are you sure you want to delete this transaction?\nAmount: ${transaction.amount}, Price: €${String.format(Locale.GERMANY, "%.2f", transaction.buyPrice)}") },
+        confirmButton = {
+            Button(onClick = {
+                onConfirmDelete()
+                // onDismiss() // No longer needed here as onConfirmDelete will set showDeleteConfirmationDialog = null
+            }) { Text("Delete") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun EditTransactionDialog(
+    transaction: VusaTransaction,
+    onSave: (VusaTransaction) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var editAmount by remember { mutableStateOf(transaction.amount.toString()) }
+    // Ensure price is formatted for editing, using dot as decimal separator internally
+    var editPrice by remember { mutableStateOf(String.format(Locale.US, "%.4f", transaction.buyPrice)) }
+
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Transaction") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = editAmount,
+                    onValueChange = { newValue ->
+                        // Allow only digits and one decimal point (either . or ,)
+                        val filtered = newValue.foldIndexed("") { index, acc, char ->
+                            if (char.isDigit()) acc + char
+                            else if ((char == '.' || char == ',') && !acc.contains('.') && !acc.contains(',')) acc + char.toString().replace(',', '.') // Normalize to .
+                            else acc
+                        }
+                         val parts = filtered.split('.', limit = 2)
+                        val integerPart = parts[0]
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Limit to 4 decimal places
+
+                        editAmount = when {
                             fractionalPart != null -> {
                                 if (integerPart.isEmpty()) "0.$fractionalPart"
                                 else "$integerPart.$fractionalPart"
@@ -272,38 +452,23 @@ fun VusaScreen(
                     },
                     label = { Text("Amount") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.large,
-                    modifier = Modifier.weight(1f),
-                    trailingIcon = {
-                        if (amountInput.isNotEmpty()) {
-                            IconButton(onClick = { amountInput = "" }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Clear,
-                                    contentDescription = "Clear",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
+                    singleLine = true
                 )
+                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
-                    value = priceInput,
-                    onValueChange = { newText ->
-                        val filtered = newText.foldIndexed("") { _: Int, acc: String, char: Char ->
-                            if (char.isDigit()) {
-                                acc + char
-                            } else if ((char == '.' || char == ',') && !acc.contains('.')) {
-                                acc + '.' // Normalize to period
-                            } else {
-                                acc
-                            }
+                    value = editPrice,
+                    onValueChange = { newValue ->
+                        // Allow only digits and one decimal point (either . or ,)
+                         val filtered = newValue.foldIndexed("") { index, acc, char ->
+                            if (char.isDigit()) acc + char
+                            else if ((char == '.' || char == ',') && !acc.contains('.') && !acc.contains(',')) acc + char.toString().replace(',', '.') // Normalize to .
+                            else acc
                         }
                         val parts = filtered.split('.', limit = 2)
                         val integerPart = parts[0]
-                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Limit to 4 decimal places for price
 
-                        priceInput = when {
+                        editPrice = when {
                             fractionalPart != null -> {
                                 if (integerPart.isEmpty()) "0.$fractionalPart"
                                 else "$integerPart.$fractionalPart"
@@ -312,120 +477,28 @@ fun VusaScreen(
                             else -> integerPart
                         }
                     },
-                    label = { Text("Price") },
+                    label = { Text("Price (€)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.large,
-                    modifier = Modifier.weight(1f),
-                    trailingIcon = {
-                        if (priceInput.isNotEmpty()) {
-                            IconButton(onClick = { priceInput = "" }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Clear,
-                                    contentDescription = "Clear",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
+                    singleLine = true
                 )
-                Button(
-                    onClick = {
-                        val amount = amountInput.toDoubleOrNull()
-                        val buyPrice = priceInput.toDoubleOrNull()
-
-                        if (amount != null && buyPrice != null) {
-                            vusaViewModel.insertTransaction(amount = amount, buyPrice = buyPrice)
-                            amountInput = "" // Clear input
-                            priceInput = ""  // Clear input
-                            showSaveConfirmation = true
-
-                            // Calculate current value based on market price
-                            val currentClosePrice = vusaData.rawClosePrice
-                            if (currentClosePrice != 0.0) {
-                                val totalValue = amount * currentClosePrice
-                                val currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY)
-                                calculatedTotal = currencyFormat.format(totalValue)
-                            } else {
-                                calculatedTotal = "Market data unavailable for current value."
-                            }
-                        } else {
-                            calculatedTotal = "Invalid input."
-                            showSaveConfirmation = false // Don't show "Transaction Saved!" if input is invalid
-                        }
-                    },
-                    modifier = Modifier.wrapContentWidth(),
-                    enabled = amountInput.isNotBlank() && priceInput.isNotBlank() && !isLoading
-                ) {
-                    Text("Save")
-                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (showSaveConfirmation) {
-                Text("Transaction Saved!", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                calculatedTotal?.let {
-                     Text("Calculated Current Value (based on saved amount): $it", style = MaterialTheme.typography.titleMedium)
+        },
+        confirmButton = {
+            Button(onClick = {
+                val newAmount = editAmount.toDoubleOrNull()
+                // Price is already normalized to use '.' from onValueChange
+                val newPrice = editPrice.toDoubleOrNull()
+                if (newAmount != null && newPrice != null) {
+                    onSave(transaction.copy(amount = newAmount, buyPrice = newPrice))
                 }
-            }
-            // Removed the 'else if (calculatedTotal != null)' block here as it could overwrite the save confirmation message
-            // if calculatedTotal was already set to "Invalid input." and then inputs become valid & saved.
-            // The "Invalid input" case for the Button's onClick has its own showSaveConfirmation = false.
-
-            // Display Saved Transactions
-            Spacer(modifier = Modifier.height(16.dp)) // Add some space before the list
-
-            if (transactions.isNotEmpty()) {
-                Text("Saved Transactions", style = MaterialTheme.typography.headlineSmall)
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) { // Give weight to allow scrolling if list is long
-                    items(transactions) { transaction ->
-                        TransactionItem(transaction = transaction) // Assuming TransactionItem is defined
-                        Divider()
-                    }
-                }
-            } else {
-                // This will be shown if transactions is empty (initially or if logging shows it becomes empty)
-                 Log.d("VusaScreen", "UI: Transactions list is empty, not showing LazyColumn.")
-                 Text("No transactions saved yet.", style = MaterialTheme.typography.bodySmall)
-            }
-
-        } else { // This else is for 'if (vusaData != null)'
-            Text("Tap 'Refresh Data' to load market information.")
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onRefresh) { Text("Refresh Data") }
+                // onDismiss() // No longer needed here, onSave will set transactionToEdit = null
+            }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-
-        if (vusaData != null && !isLoading) { // Show refresh button if data is loaded or was loaded (even if error occurred after)
-            Spacer(modifier = Modifier.weight(if (transactions.isEmpty()) 0f else 1f)) // Adjust weight based on list presence
-            Button(onClick = onRefresh, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Text("Refresh Market Data")
-            }
-        }
-    }
+    )
 }
-
-
-@Composable
-fun TransactionItem(transaction: VusaTransaction) { // Basic example
-    Row(
-        modifier = Modifier
-            .padding(vertical = 8.dp)
-            .fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Amount: ${transaction.amount}", style = MaterialTheme.typography.bodyMedium)
-            Text("Buy Price: €${String.format(Locale.GERMANY, "%.2f", transaction.buyPrice)}", style = MaterialTheme.typography.bodyMedium)
-        }
-        Text(
-            SimpleDateFormat("dd MMM yy HH:mm", Locale.getDefault()).format(Date(transaction.transactionTimestamp)),
-            style = MaterialTheme.typography.bodySmall
-        )
-    }
-}
-
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
@@ -434,28 +507,43 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     }
 }
 
-// --- Previews with Fake ViewModel ---
+// --- Previews with Fake ViewModel --- (Updated to reflect new DAO methods)
 class FakeVusaTransactionDao : VusaTransactionDao {
     private val _transactions = mutableListOf<VusaTransaction>()
     private val transactionsFlow = MutableStateFlow<List<VusaTransaction>>(emptyList())
-    private var nextId = 1 // For faking autoGenerate
+    private var nextId = 1
+
+    init {
+        // Sample data for previews
+        val sampleData = listOf(
+            VusaTransaction(id=nextId++, amount = 10.0, buyPrice = 80.50, transactionTimestamp = System.currentTimeMillis() - 200000),
+            VusaTransaction(id=nextId++, amount = 5.0, buyPrice = 82.30, transactionTimestamp = System.currentTimeMillis() - 100000)
+        )
+        _transactions.addAll(sampleData)
+        transactionsFlow.value = _transactions.toList()
+    }
 
     override suspend fun insertTransaction(transaction: VusaTransaction) {
         Log.d("FakeVusaTransactionDao", "insertTransaction called with: $transaction")
-        // Simulate autoGenerate = true by assigning an ID if it's the default (0 for Int)
+        // Simulate autoincrement ID if id is 0 (default for new transactions)
         val newTransaction = if (transaction.id == 0) transaction.copy(id = nextId++) else transaction
-        _transactions.add(0, newTransaction) // Add to top like real DAO query
+        _transactions.add(0, newTransaction)
+        _transactions.sortByDescending { it.transactionTimestamp }
         transactionsFlow.value = _transactions.toList()
     }
+
     override suspend fun updateTransaction(transaction: VusaTransaction) {
-         val index = _transactions.indexOfFirst { it.id == transaction.id }
+        val index = _transactions.indexOfFirst { it.id == transaction.id }
         if (index != -1) {
             _transactions[index] = transaction
+            _transactions.sortByDescending { it.transactionTimestamp } // Re-sort if timestamp could change, though not in this edit impl
             transactionsFlow.value = _transactions.toList()
         }
     }
+
     override fun getAllTransactions(): Flow<List<VusaTransaction>> = transactionsFlow
     override suspend fun getTransactionById(id: Int): VusaTransaction? = _transactions.find { it.id == id }
+
     override suspend fun deleteTransactionById(id: Int) {
         _transactions.removeAll { it.id == id }
         transactionsFlow.value = _transactions.toList()
@@ -472,65 +560,35 @@ fun MainScreenPreview() {
     StocksWidgetTheme { MainScreen(onShowVusaClick = {}) }
 }
 
-@Preview(showBackground = true, name = "Vusa Screen - Initial Loading")
+@Preview(showBackground = true, name = "Vusa Screen - Data & List")
 @Composable
-fun VusaScreenPreviewInitialLoading() {
-    StocksWidgetTheme {
-        VusaScreen(
-            vusaViewModel = getPreviewVusaViewModel(),
-            vusaData = null,
-            isLoading = true,
-            errorMessage = null,
-            onRefresh = {},
-            onBack = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "Vusa Screen - Data Loaded, No Input")
-@Composable
-fun VusaScreenPreviewDataLoadedNoInput() {
+fun VusaScreenPreviewDataLoadedWithList() {
     StocksWidgetTheme {
         VusaScreen(
             vusaViewModel = getPreviewVusaViewModel(),
             vusaData = VusaData("€85,50", 85.50, "10:30 AM"),
-            isLoading = false,
-            errorMessage = null,
-            onRefresh = {},
-            onBack = {}
+            isLoading = false, errorMessage = null, onRefresh = {}, onBack = {}
         )
     }
 }
 
-@Preview(showBackground = true, name = "Vusa Screen - Data Loaded, With Input & Calculation")
+@Preview(showBackground = true, name = "Vusa Screen - Edit Dialog")
 @Composable
-fun VusaScreenPreviewDataLoadedWithInputAndCalculation() {
+fun VusaScreenPreviewEditDialog() {
     StocksWidgetTheme {
-        val vusaData = VusaData("€85,75", 85.75, "10:35 AM")
-        VusaScreen(
-            vusaViewModel = getPreviewVusaViewModel(),
-            vusaData = vusaData,
-            isLoading = false,
-            errorMessage = null,
-            onRefresh = {},
-            onBack = {}
-        )
+        // val viewModel = getPreviewVusaViewModel() // Not directly needed for dialog preview
+        // Manually trigger an edit for preview
+        val sampleTransaction = remember { VusaTransaction(id = 1, amount = 10.0, buyPrice = 80.5, transactionTimestamp = System.currentTimeMillis()) }
+        EditTransactionDialog(transaction = sampleTransaction, onSave = {}, onDismiss = {})
     }
 }
 
-
-@Preview(showBackground = true, name = "Vusa Screen - Error")
+@Preview(showBackground = true, name = "Vusa Screen - Delete Dialog")
 @Composable
-fun VusaScreenPreviewError() {
+fun VusaScreenPreviewDeleteDialog() {
     StocksWidgetTheme {
-        VusaScreen(
-            vusaViewModel = getPreviewVusaViewModel(),
-            vusaData = VusaData("N/A", 0.0, "N/A"),
-            isLoading = false,
-            errorMessage = "Network failed. Tap Retry.",
-            onRefresh = {},
-            onBack = {}
-        )
+        val sampleTransaction = remember { VusaTransaction(id = 1, amount = 10.0, buyPrice = 80.5, transactionTimestamp = System.currentTimeMillis()) }
+        DeleteConfirmationDialog(transaction = sampleTransaction, onConfirmDelete = {}, onDismiss = {})
     }
 }
 
