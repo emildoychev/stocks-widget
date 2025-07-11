@@ -47,6 +47,13 @@ class StockWidgetProvider : AppWidgetProvider() {
         private const val TAG = "StockWidgetProvider"
         internal const val ACTION_MANUAL_REFRESH = "com.example.stockswidget.ACTION_MANUAL_REFRESH"
         private const val STOCK_UPDATE_WORK_NAME = "com.example.stockswidget.STOCK_UPDATE_WORK"
+        private const val WORK_REPEAT_INTERVAL_MINUTES = 30L
+
+        // API URLs
+        internal const val API_URL_XETR_CIWP = "https://scanner.tradingview.com/symbol?symbol=XETR%3ACIWP&fields=close"
+        internal const val API_URL_EURONEXT_3AMD = "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3A3AMD&fields=close"
+        internal const val API_URL_XETR_COMS = "https://scanner.tradingview.com/symbol?symbol=XETR%3ACOMS&fields=close"
+        // ABN_GRAPHQL_URL, AMS_VUSA_API_URL, XETR_QDVE_API_URL are defined below with their respective stock details
 
         // Stock 1: XET | CIWP
         internal const val XET_CIWP_BUY_PRICE_ORIG = 0.7085
@@ -118,19 +125,19 @@ class StockWidgetProvider : AppWidgetProvider() {
                 R.id.stock_label_textview, R.id.last_updated_textview, R.id.profit_loss_textview,
                 R.id.buy_price_textview, R.id.stock_price_textview,
                 XET_CIWP_BUY_PRICE, XET_CIWP_AMOUNT,
-                "https://scanner.tradingview.com/symbol?symbol=XETR%3ACIWP&fields=close",
+                API_URL_XETR_CIWP,
             ),
             StockInfo(
                 R.id.stock_label_textview_stock2, R.id.last_updated_textview_stock2, R.id.profit_loss_textview_stock2,
                 R.id.buy_price_textview_stock2, R.id.stock_price_textview_stock2,
                 EAM_3AMD_BUY_PRICE, EAM_3AMD_AMOUNT,
-                "https://scanner.tradingview.com/symbol?symbol=EURONEXT%3A3AMD&fields=close"
+                API_URL_EURONEXT_3AMD
             ),
             StockInfo(
                 R.id.stock_label_textview_stock3, R.id.last_updated_textview_stock3, R.id.profit_loss_textview_stock3,
                 R.id.buy_price_textview_stock3, R.id.stock_price_textview_stock3,
                 XET_COMS_BUY_PRICE, XET_COMS_AMOUNT,
-                "https://scanner.tradingview.com/symbol?symbol=XETR%3ACOMS&fields=close"
+                API_URL_XETR_COMS
             ),
             StockInfo(
                 R.id.stock_label_textview_stock4, R.id.last_updated_textview_stock4, R.id.profit_loss_textview_stock4,
@@ -172,7 +179,7 @@ class StockWidgetProvider : AppWidgetProvider() {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val periodicWorkRequest = PeriodicWorkRequestBuilder<StockUpdateWorker>(30, TimeUnit.MINUTES)
+        val periodicWorkRequest = PeriodicWorkRequestBuilder<StockUpdateWorker>(WORK_REPEAT_INTERVAL_MINUTES, TimeUnit.MINUTES)
             .setConstraints(constraints)
             .build()
 

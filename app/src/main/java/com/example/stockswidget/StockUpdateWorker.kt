@@ -32,27 +32,52 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
     companion object {
         private const val TAG = "StockUpdateWorker"
         const val KEY_APP_WIDGET_IDS = "app_widget_ids"
+
+        // Notification Channel Constants
+        private const val NOTIFICATION_CHANNEL_ID = "stock_widget_refresh_channel"
+        private const val NOTIFICATION_CHANNEL_NAME = "Stock Widget Updates"
+        private const val NOTIFICATION_CHANNEL_DESC = "Notifications for stock widget manual refresh"
+
+        // Network Request Constants
+        private const val HTTP_METHOD_POST = "POST"
+        private const val HEADER_CONTENT_TYPE = "Content-Type"
+        private const val HEADER_ACCEPT = "Accept"
+        private const val HEADER_X_CONSUMER_ID = "x-consumer-id"
+        private const val APPLICATION_JSON = "application/json"
+        private const val X_CONSUMER_ID_VALUE = "GPX" // Vanguard specific
+        private const val CONNECT_TIMEOUT_MS = 15000
+        private const val READ_TIMEOUT_MS = 15000
+
+        // JSON keys
+        private const val JSON_KEY_CLOSE = "close"
+        private const val JSON_KEY_QUERY = "query"
+        private const val JSON_KEY_VARIABLES = "variables"
+        private const val JSON_KEY_DATA = "data"
+        private const val JSON_KEY_FUNDS = "funds"
+        private const val JSON_KEY_PRICING_DETAILS = "pricingDetails"
+        private const val JSON_KEY_NAV_PRICES = "navPrices"
+        private const val JSON_KEY_ITEMS = "items"
+        private const val JSON_KEY_PRICE = "price"
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val context = applicationContext
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        val channelId = "stock_widget_refresh_channel"
         val notificationId = System.currentTimeMillis().toInt() // Unique ID for the notification
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                channelId,
-                "Stock Widget Updates", // User-visible name for the channel
+                NOTIFICATION_CHANNEL_ID,
+                NOTIFICATION_CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Notifications for stock widget manual refresh"
+                description = NOTIFICATION_CHANNEL_DESC
             }
             notificationManager.createNotificationChannel(channel)
         }
 
-        val notification = NotificationCompat.Builder(context, channelId)
+        val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("Refreshing Widget Data")
             .setContentText("Fetching latest stock prices...")
             .setSmallIcon(R.drawable.ic_launcher_foreground) // Ensure this drawable exists
@@ -100,10 +125,10 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
             showLoadingState(context, appWidgetManager, appWidgetId)
         }
 
-        // Fetch prices (this part involves network requests)
+        // Fetch prices
         val fetchedPrices = mutableListOf<Double>()
         try {
-            for (stock in StockWidgetProvider.stocks) { // Accessing companion object\'s list
+            for (stock in StockWidgetProvider.stocks) {
                 val price = if (stock.isGraphQL) {
                     fetchGraphQLPrice(stock.apiUrl, stock.graphQLQuery!!, stock.graphQLVariables!!)
                 } else {
@@ -124,7 +149,6 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
             return Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Error during stock data fetching or widget update: ${e.message}", e)
-            // Optionally, update widgets to an error state here
             return Result.failure()
         }
     }
@@ -135,22 +159,8 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
         
         // Make loading indicator visible
         views.setViewVisibility(R.id.loading_indicator, View.VISIBLE)
-        
-        // Hide main content container
+        // Hide main content container (which includes all stock views and dividers)
         views.setViewVisibility(R.id.content_container, View.INVISIBLE)
-
-        // Explicitly hide all individual stock views and dividers if they are outside content_container
-        // or if content_container visibility doesn\'t hide them effectively.
-        // This ensures a clean loading state.
-        StockWidgetProvider.stocks.forEach { stock ->
-             views.setViewVisibility(stock.labelViewId, View.GONE)
-             views.setViewVisibility(stock.lastUpdatedViewId, View.GONE)
-             views.setViewVisibility(stock.profitLossViewId, View.GONE)
-             views.setViewVisibility(stock.buyPriceViewId, View.GONE)
-             views.setViewVisibility(stock.stockPriceViewId, View.GONE)
-        }
-        val dividerIds = listOf(R.id.divider_line, R.id.divider_line_2, R.id.divider_line_3, R.id.divider_line_4, R.id.divider_line_5)
-        dividerIds.forEach { views.setViewVisibility(it, View.GONE) }
 
         try {
             appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -164,7 +174,7 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
         return try {
             val jsonString = withContext(Dispatchers.IO) { URL(apiUrl).readText() }
             val jsonObject = JSONObject(jsonString)
-            jsonObject.getDouble("close")
+            jsonObject.getDouble(JSON_KEY_CLOSE)
         } catch (e: Exception) {
             Log.e(TAG, "fetchPrice Error for $apiUrl: ${e.message}", e)
             Double.NaN // Return NaN on error
@@ -182,24 +192,26 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
             withContext(Dispatchers.IO) {
                 val url = URL(apiUrl)
                 connection = url.openConnection() as HttpURLConnection
-                connection!!.requestMethod = "POST"
-                connection!!.setRequestProperty("Content-Type", "application/json")
-                connection!!.setRequestProperty("Accept", "application/json")
-                connection!!.setRequestProperty("x-consumer-id", "GPX")
+                connection!!.requestMethod = HTTP_METHOD_POST
+                connection!!.setRequestProperty(HEADER_CONTENT_TYPE, APPLICATION_JSON)
+                connection!!.setRequestProperty(HEADER_ACCEPT, APPLICATION_JSON)
+                connection!!.setRequestProperty(HEADER_X_CONSUMER_ID, X_CONSUMER_ID_VALUE)
                 connection!!.doOutput = true
-                connection!!.connectTimeout = 15000
-                connection!!.readTimeout = 15000
+                connection!!.connectTimeout = CONNECT_TIMEOUT_MS
+                connection!!.readTimeout = READ_TIMEOUT_MS
 
                 val payload = JSONObject()
-                payload.put("query", query)
-                payload.put("variables", variables)
+                payload.put(JSON_KEY_QUERY, query)
+                payload.put(JSON_KEY_VARIABLES, variables)
                 
-                val escapedPayload = payload.toString().replace("'","'''")
+                // The cURL logging can be very verbose, consider its necessity or log level
+                // For brevity in this refactoring, I'm keeping it but you might want to adjust
+                val escapedPayload = payload.toString().replace("'","\'\'\'") // Escape for shell
                 val curlCommand = """
                     curl -X ${connection!!.requestMethod} "$apiUrl" \
-                    -H "Content-Type: ${connection!!.getRequestProperty("Content-Type")}" \
-                    -H "Accept: ${connection!!.getRequestProperty("Accept")}" \
-                    -H "x-consumer-id: ${connection!!.getRequestProperty("x-consumer-id")}" \
+                    -H "$HEADER_CONTENT_TYPE: ${connection!!.getRequestProperty(HEADER_CONTENT_TYPE)}" \
+                    -H "$HEADER_ACCEPT: ${connection!!.getRequestProperty(HEADER_ACCEPT)}" \
+                    -H "$HEADER_X_CONSUMER_ID: ${connection!!.getRequestProperty(HEADER_X_CONSUMER_ID)}" \
                     -d '$escapedPayload'
                 """.trimIndent()
                 Log.d(TAG, "Equivalent cURL command (from worker):\n$curlCommand")
@@ -224,27 +236,27 @@ class StockUpdateWorker(appContext: Context, workerParams: WorkerParameters) :
                     Log.d(TAG, "GraphQL Raw Response for $apiUrl: $responseString")
                     if (responseCode == HttpURLConnection.HTTP_OK) {
                         val jsonResponse = JSONObject(responseString)
-                        val dataObject = jsonResponse.optJSONObject("data")
-                        val fundsArray = dataObject?.optJSONArray("funds")
+                        val dataObject = jsonResponse.optJSONObject(JSON_KEY_DATA)
+                        val fundsArray = dataObject?.optJSONArray(JSON_KEY_FUNDS)
                         if (fundsArray != null && fundsArray.length() > 0) {
                             val firstFund = fundsArray.optJSONObject(0)
-                            val pricingDetails = firstFund?.optJSONObject("pricingDetails")
-                            val navPrices = pricingDetails?.optJSONObject("navPrices")
-                            val itemsArray = navPrices?.optJSONArray("items")
+                            val pricingDetails = firstFund?.optJSONObject(JSON_KEY_PRICING_DETAILS)
+                            val navPrices = pricingDetails?.optJSONObject(JSON_KEY_NAV_PRICES)
+                            val itemsArray = navPrices?.optJSONArray(JSON_KEY_ITEMS)
                             if (itemsArray != null && itemsArray.length() > 0) {
                                 val firstItem = itemsArray.optJSONObject(0)
-                                return@withContext firstItem?.optDouble("price", Double.NaN) ?: Double.NaN
+                                return@withContext firstItem?.optDouble(JSON_KEY_PRICE, Double.NaN) ?: Double.NaN
                             }
                         }
                     } else {
                         Log.e(TAG, "GraphQL Error for $apiUrl. Response: $responseString")
                     }
                 }
-                Double.NaN // Return NaN if parsing fails or not HTTP_OK
+                Double.NaN
             }
         } catch (e: Exception) {
             Log.e(TAG, "fetchGraphQLPrice Error for $apiUrl: ${e.message}", e)
-            Double.NaN // Return NaN on error
+            Double.NaN
         } finally {
             connection?.disconnect()
         }
