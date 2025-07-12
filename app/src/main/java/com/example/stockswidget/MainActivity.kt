@@ -165,7 +165,6 @@ suspend fun fetchVusaPriceData(): VusaData {
                 val closePrice = jsonObject.optDouble("close", Double.NaN)
                 val lastBarUpdateTime = jsonObject.optLong("last_bar_update_time", -1L)
 
-                // The vusaData.closePrice is already formatted with € by default from network call
                 // For rawClosePrice, we just need the double value.
                 val formattedPriceDisplay = if (closePrice.isNaN()) "N/A" else "€${String.format(Locale.GERMANY, "%.2f", closePrice)}"
                 val rawPrice = if (closePrice.isNaN()) 0.0 else closePrice
@@ -315,7 +314,7 @@ fun VusaScreen(
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
-                                        Icons.Filled.Clear, // Changed here
+                                        Icons.Filled.Clear,
                                         "Clear",
                                         Modifier.size(18.dp)
                                     )
@@ -351,7 +350,7 @@ fun VusaScreen(
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
-                                        Icons.Filled.Clear, // Changed here
+                                        Icons.Filled.Clear,
                                         "Clear",
                                         Modifier.size(18.dp)
                                     )
@@ -423,8 +422,6 @@ fun VusaScreen(
                                 currency = selectedCurrency // Pass selected currency
                             )
                             amountInput = ""; priceInput = "" // Clear inputs
-                            // selectedBuyDateMillis = System.currentTimeMillis() // Optionally reset date
-                            // selectedCurrency = "€" // Optionally reset currency
                             coroutineScope.launch {
                                 snackbarHostState.showSnackbar(
                                     message = "Transaction Saved!",
@@ -873,3 +870,4 @@ fun TransactionItemPreviewOtherLoss() {
         TransactionItem(transaction = transaction, currentMarketPrice = 45.0, onEditClick = {}, onDeleteClick = {})
     }
 }
+
