@@ -609,6 +609,14 @@ fun TransactionItem(
             val currentValue = transaction.amount * marketPrice
             val profitOrLoss = currentValue - totalBuyValue
             val profitLossText = formatCurrency(profitOrLoss, transaction.currency)
+
+            val percentageString = if (totalBuyValue != 0.0) {
+                val percentage = (profitOrLoss / totalBuyValue) * 100
+                String.format(Locale.US, " (%.2f%%)", percentage)
+            } else {
+                "" // No percentage if initial value was zero
+            }
+
             val profitLossColor = when {
                 profitOrLoss > 0 -> Color(0xFF4CAF50) // Green
                 profitOrLoss < 0 -> Color(0xFFF44336) // Red
@@ -641,9 +649,9 @@ fun TransactionItem(
                     }
                     Text(
                         text = when {
-                            profitOrLoss > 0 -> "$profitLossText"
-                            profitOrLoss < 0 -> "$profitLossText"
-                            else -> "P/L: $profitLossText"
+                            profitOrLoss > 0 -> "$profitLossText$percentageString"
+                            profitOrLoss < 0 -> "$profitLossText$percentageString"
+                            else -> "P/L: $profitLossText$percentageString"
                         },
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = profitLossColor
