@@ -1,5 +1,6 @@
 package com.example.stockswidget
 
+import android.content.Context // Added import for SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -19,7 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.DateRange // Added import
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -28,8 +29,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color // Added import
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext // Added import for SharedPreferences
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,12 +52,12 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.math.BigDecimal // Added import
+import java.math.BigDecimal
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
-import java.util.Calendar // Added import for Calendar
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -105,7 +107,7 @@ fun formatCurrencyFixed(amount: Double, currencySymbol: String): String {
 }
 
 
-@OptIn(ExperimentalMaterial3Api::class) // Added OptIn for TopAppBar
+@OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,7 +122,14 @@ class MainActivity : ComponentActivity() {
             StocksWidgetTheme {
                 var showAddPortfolioDialog by remember { mutableStateOf(false) }
                 var newPortfolioTitle by remember { mutableStateOf("") }
-                val customPortfolios = remember { mutableStateListOf<String>() }
+
+                // SharedPreferences logic for customPortfolios
+                val context = LocalContext.current
+                val sharedPreferences = remember { context.getSharedPreferences("portfolio_prefs", Context.MODE_PRIVATE) }
+                val savedPortfolios = remember {
+                    sharedPreferences.getStringSet("custom_portfolio_titles", emptySet())?.toList() ?: emptyList()
+                }
+                val customPortfolios = remember { mutableStateListOf<String>().apply { addAll(savedPortfolios) } }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -135,7 +144,10 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                                 horizontalArrangement = Arrangement.Center
                             ) {
-                                Button(onClick = { showAddPortfolioDialog = true }) {
+                                Button(
+                                    onClick = { showAddPortfolioDialog = true },
+                                    modifier = Modifier.fillMaxWidth() // Changed to fillMaxWidth
+                                ) {
                                     Text("Add New Portfolio")
                                 }
                             }
@@ -200,7 +212,12 @@ class MainActivity : ComponentActivity() {
                                 Button(
                                     onClick = {
                                         if (newPortfolioTitle.isNotBlank()) {
-                                            customPortfolios.add(newPortfolioTitle)
+                                            customPortfolios.add(newPortfolioTitle.trim())
+                                            // Save to SharedPreferences
+                                            with(sharedPreferences.edit()) {
+                                                putStringSet("custom_portfolio_titles", customPortfolios.toSet())
+                                                apply()
+                                            }
                                             newPortfolioTitle = ""
                                             showAddPortfolioDialog = false
                                         }
@@ -454,7 +471,8 @@ fun VusaScreen(
                 customPortfolios.forEach { portfolioTitle ->
                     Text(
                         text = portfolioTitle,
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -591,8 +609,8 @@ fun VusaScreen(
                                         contentPadding = PaddingValues(all = 8.dp),
                                         border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
                                         colors = ButtonDefaults.outlinedButtonColors(
-                                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                            containerColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else Color.Transparent,
+                                            contentColor = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface
                                         ),
                                         shape = MaterialTheme.shapes.medium
                                     ) {
@@ -1141,4 +1159,3 @@ fun TransactionItemPreviewOtherLoss() {
         TransactionItem(transaction = transaction, currentMarketPrice = 45.0, onEditClick = {})
     }
 }
-
