@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -154,7 +155,7 @@ suspend fun fetchVusaPriceData(): VusaData {
                     try {
                         val date = Date(lastBarUpdateTime * 1000L)
                         val sdf = SimpleDateFormat("h:mm a", Locale.US)
-                        sdf.timeZone = TimeZone.getDefault() // Use device\'s default timezone
+                        sdf.timeZone = TimeZone.getDefault() // Use device's default timezone
                         sdf.format(date)
                     } catch (e: Exception) {
                         "Time Format Error"
@@ -199,6 +200,8 @@ fun VusaScreen(
     var selectedBuyDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    var selectedCurrency by remember { mutableStateOf("€") }
+
 
     var calculatedTotal by remember { mutableStateOf<String?>(null) }
     var showSaveConfirmation by remember { mutableStateOf(false) }
@@ -244,7 +247,7 @@ fun VusaScreen(
             Text("Last Update: ${vusaData.lastUpdateTime}", style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Row for input fields
+            // Row for Amount and Price input fields
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -322,15 +325,59 @@ fun VusaScreen(
                         }
                     } else null
                 )
+            }
+            Spacer(modifier = Modifier.height(8.dp)) // Spacer between Amount/Price row and Buy Date/Currency row
+
+            // Row for Buy Date and Currency Buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min), // Ensures Row height is based on tallest child
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp) // Space between Buy Date and Currency Button group
+            ) {
                 ClickableTextField(
                     value = dateFormatter.format(Date(selectedBuyDateMillis)),
                     label = "Buy Date",
                     onClick = { showDatePickerDialog = true },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f) // Takes first half of this row
+                        .fillMaxHeight(), // Fills the intrinsic height
                     trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date", modifier = Modifier.size(18.dp).offset(x = 4.dp)) }
                 )
+
+                // Row for Currency Buttons
+                Row(
+                    modifier = Modifier
+                        .weight(1f) // Takes second half of this row
+                        .fillMaxHeight() // Fills the intrinsic height
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp), // Small space between buttons
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val currencies = listOf("€", "$", "Other")
+
+                    currencies.forEach { currency ->
+                        val isSelected = selectedCurrency == currency
+                        OutlinedButton(
+                            onClick = { selectedCurrency = currency },
+                            modifier = Modifier
+                                .weight(1f) // Each button takes equal share of the currency row
+                                .fillMaxHeight(), // Fills the height of this inner Row
+                            contentPadding = PaddingValues(all = 8.dp),
+                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                            ),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Text(currency, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(16.dp)) 
+            Spacer(modifier = Modifier.height(16.dp))
 
             Button(
                 onClick = {
@@ -473,7 +520,7 @@ fun ClickableTextField(
             label = { Text(label) },
             readOnly = true,
             enabled = false, // Disable the TextField itself
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(), // Added fillMaxHeight() here
             shape = MaterialTheme.shapes.large,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium, // Smaller font
