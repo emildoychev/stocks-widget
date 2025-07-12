@@ -239,12 +239,17 @@ fun Portfolio(
         val totalPortfolioValue = transactions.sumOf { it.amount * currentMarketPrice }
         val totalCost = transactions.sumOf { it.amount * it.buyPrice }
         val totalProfitLoss = totalPortfolioValue - totalCost
-        val currencySymbol = transactions.first().currency 
+        val currencySymbol = transactions.first().currency
 
         val profitLossColor = when {
             totalProfitLoss > 0 -> Color(0xFF4CAF50) // Green
             totalProfitLoss < 0 -> Color(0xFFF44336) // Red
             else -> Color.White // Or MaterialTheme.colorScheme.onSurface if you prefer
+        }
+        val (icon, iconColor) = when {
+            totalProfitLoss > 0 -> Icons.Filled.ArrowUpward to profitLossColor
+            totalProfitLoss < 0 -> Icons.Filled.ArrowDownward to profitLossColor
+            else -> null to profitLossColor // No icon if neutral
         }
 
         Row(
@@ -265,11 +270,22 @@ fun Portfolio(
                     style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
-                Text(
-                    text = formatCurrencyFixed(totalProfitLoss, currencySymbol),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                    color = profitLossColor
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    icon?.let {
+                        Icon(
+                            imageVector = it,
+                            contentDescription = if (totalProfitLoss > 0) "Profit" else "Loss",
+                            tint = iconColor,
+                            modifier = Modifier.size(28.dp) // Adjust size as needed
+                        )
+                        Spacer(modifier = Modifier.width(4.dp)) // Space between icon and text
+                    }
+                    Text(
+                        text = formatCurrencyFixed(totalProfitLoss, currencySymbol),
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = profitLossColor
+                    )
+                }
             }
         }
         Divider() // Add a divider below the portfolio summary
@@ -385,7 +401,7 @@ fun VusaScreen(
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
-                                        Icons.Filled.Clear, 
+                                        Icons.Filled.Clear,
                                         "Clear",
                                         Modifier.size(18.dp)
                                     )
@@ -539,7 +555,7 @@ fun VusaScreen(
                         items(transactions, key = { it.id }) { transaction ->
                             TransactionItem(
                                 transaction = transaction,
-                                currentMarketPrice = vusaData?.rawClosePrice, 
+                                currentMarketPrice = vusaData?.rawClosePrice,
                                 onEditClick = { transactionToEdit = it },
                             )
                             Divider()
@@ -549,7 +565,7 @@ fun VusaScreen(
                     Text("No transactions saved yet.", style = MaterialTheme.typography.bodyMedium)
                 }
 
-            } else { 
+            } else {
                 Text("Tap 'Refresh Data' to load market information.")
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = {
@@ -647,20 +663,20 @@ fun ClickableTextField(
             onValueChange = { /* Read-only */ },
             label = { Text(label) },
             readOnly = true,
-            enabled = false, 
+            enabled = false,
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),
             shape = MaterialTheme.shapes.large,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium,
             trailingIcon = trailingIcon,
-            colors = OutlinedTextFieldDefaults.colors( 
+            colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                disabledContainerColor = Color.Transparent, 
+                disabledContainerColor = Color.Transparent,
                 disabledBorderColor = MaterialTheme.colorScheme.outline,
                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant, 
+                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         )
     }
@@ -715,7 +731,7 @@ fun TransactionItem(
             val currentValue = transaction.amount * marketPrice
             val profitOrLoss = currentValue - totalBuyValue
             val profitLossText = formatCurrencyFixed(profitOrLoss, transaction.currency) // Use formatCurrencyFixed
-            
+
             val percentageString = if (totalBuyValue != 0.0) {
                 val percentage = (profitOrLoss / totalBuyValue) * 100
                 val numberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
@@ -954,15 +970,15 @@ class FakeVusaTransactionDao : VusaTransactionDao {
 
     override suspend fun insertTransaction(transaction: VusaTransaction) {
         val newTransaction = if (transaction.id == 0) transaction.copy(id = nextId++) else transaction
-        _transactions.add(0, newTransaction) 
-        _transactions.sortByDescending { it.transactionTimestamp } 
+        _transactions.add(0, newTransaction)
+        _transactions.sortByDescending { it.transactionTimestamp }
         transactionsFlow.value = _transactions.toList()
     }
 
     override suspend fun updateTransaction(transaction: VusaTransaction) {
         val index = _transactions.indexOfFirst { it.id == transaction.id }
         if (index != -1) {
-            _transactions[index] = transaction 
+            _transactions[index] = transaction
             transactionsFlow.value = _transactions.toList().sortedByDescending { it.transactionTimestamp }
         }
     }
@@ -989,10 +1005,10 @@ fun MainScreenPreview() {
 fun VusaScreenPreviewDataLoadedWithList() {
     StocksWidgetTheme {
         val snackbarHostState = remember { SnackbarHostState() }
-        val coroutineScope = rememberCoroutineScope() 
+        val coroutineScope = rememberCoroutineScope()
         VusaScreen(
-            vusaViewModel = getPreviewVusaViewModel(), 
-            vusaData = VusaData("€85.50", 85.50, "10:30 AM"), 
+            vusaViewModel = getPreviewVusaViewModel(),
+            vusaData = VusaData("€85.50", 85.50, "10:30 AM"),
             isLoading = false,
             errorMessage = null,
             onRefresh = {},
