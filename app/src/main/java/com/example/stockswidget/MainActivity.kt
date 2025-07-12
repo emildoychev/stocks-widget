@@ -105,6 +105,7 @@ fun formatCurrencyFixed(amount: Double, currencySymbol: String): String {
 }
 
 
+@OptIn(ExperimentalMaterial3Api::class) // Added OptIn for TopAppBar
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -117,14 +118,20 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             StocksWidgetTheme {
-                // Main scaffold for the activity
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    var showVusaScreen by remember { mutableStateOf(false) }
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    topBar = {
+                        TopAppBar(
+                            title = { Text("Stock Portfolio and Widgets") }
+                        )
+                    }
+                ) { innerPadding ->
+                    // var showVusaScreen by remember { mutableStateOf(false) } // Kept for context, but logic changed
                     var vusaData by remember { mutableStateOf<VusaData?>(null) }
                     var isLoading by remember { mutableStateOf(false) }
                     var errorMessage by remember { mutableStateOf<String?>(null) }
                     val coroutineScope = rememberCoroutineScope()
-                    val snackbarHostState = remember { SnackbarHostState() } // SnackbarHostState for VusaScreen
+                    val snackbarHostState = remember { SnackbarHostState() }
 
                     fun fetchVusaData() {
                         coroutineScope.launch {
@@ -141,6 +148,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // VusaScreen is now always shown as per previous steps
                     VusaScreen(
                         modifier = Modifier.padding(innerPadding), // Apply padding from main scaffold
                         vusaViewModel = vusaViewModel,
@@ -148,8 +156,8 @@ class MainActivity : ComponentActivity() {
                         isLoading = isLoading,
                         errorMessage = errorMessage,
                         onRefresh = { fetchVusaData() },
-                        snackbarHostState = snackbarHostState, // Pass SnackbarHostState
-                        coroutineScope = coroutineScope // Pass CoroutineScope
+                        snackbarHostState = snackbarHostState,
+                        coroutineScope = coroutineScope
                     )
                     LaunchedEffect(Unit) {
                         if (vusaData == null && !isLoading) {
@@ -1072,7 +1080,8 @@ fun VusaScreenPreviewDeleteDialog() {
 fun TransactionItemPreviewEuro() {
     StocksWidgetTheme {
         val transaction = VusaTransaction(id = 1, amount = 10.0, buyPrice = 80.50, currency = "€", transactionTimestamp = System.currentTimeMillis())
-        TransactionItem(transaction = transaction, currentMarketPrice = 85.50, onEditClick = {})}
+        TransactionItem(transaction = transaction, currentMarketPrice = 85.50, onEditClick = {})
+    }
 }
 
 @Preview(showBackground = true, name = "Transaction Item Preview - Dollar Profit")
@@ -1080,7 +1089,8 @@ fun TransactionItemPreviewEuro() {
 fun TransactionItemPreviewDollarProfit() {
     StocksWidgetTheme {
         val transaction = VusaTransaction(id = 1, amount = 5.0, buyPrice = 100.0, currency = "$", transactionTimestamp = System.currentTimeMillis())
-        TransactionItem(transaction = transaction, currentMarketPrice = 110.0, onEditClick = {})}
+        TransactionItem(transaction = transaction, currentMarketPrice = 110.0, onEditClick = {})
+    }
 }
 
 @Preview(showBackground = true, name = "Transaction Item Preview - Other Loss")
@@ -1088,5 +1098,7 @@ fun TransactionItemPreviewDollarProfit() {
 fun TransactionItemPreviewOtherLoss() {
     StocksWidgetTheme {
         val transaction = VusaTransaction(id = 1, amount = 20.0, buyPrice = 50.0, currency = "Other", transactionTimestamp = System.currentTimeMillis())
-        TransactionItem(transaction = transaction, currentMarketPrice = 45.0, onEditClick = {})}
+        TransactionItem(transaction = transaction, currentMarketPrice = 45.0, onEditClick = {})
+    }
 }
+
