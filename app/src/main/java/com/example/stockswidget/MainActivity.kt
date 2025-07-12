@@ -51,6 +51,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
+import java.util.Calendar // Added import for Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -200,7 +201,7 @@ suspend fun fetchVusaPriceData(): VusaData {
                     try {
                         val date = Date(lastBarUpdateTime * 1000L)
                         val sdf = SimpleDateFormat("h:mm a", Locale.US)
-                        sdf.timeZone = TimeZone.getDefault() // Use device\'s default timezone
+                        sdf.timeZone = TimeZone.getDefault() // Use device's default timezone
                         sdf.format(date)
                     } catch (e: Exception) {
                         "Time Format Error"
@@ -440,11 +441,19 @@ fun VusaScreen(
                         val amount = amountInput.toDoubleOrNull()
                         val buyPrice = priceInput.toDoubleOrNull()
                         if (amount != null && buyPrice != null) {
+                            val calendar = Calendar.getInstance()
+                            calendar.timeInMillis = selectedBuyDateMillis
+                            calendar.set(Calendar.HOUR_OF_DAY, 12)
+                            calendar.set(Calendar.MINUTE, 0)
+                            calendar.set(Calendar.SECOND, 0)
+                            calendar.set(Calendar.MILLISECOND, 0)
+                            val adjustedTimestamp = calendar.timeInMillis
+
                             vusaViewModel.insertTransaction(
                                 amount = amount,
                                 buyPrice = buyPrice,
-                                transactionTimestamp = selectedBuyDateMillis,
-                                currency = selectedCurrency // Pass selected currency
+                                transactionTimestamp = adjustedTimestamp, // Use adjusted timestamp
+                                currency = selectedCurrency
                             )
                             amountInput = ""; priceInput = "" // Clear inputs
                             coroutineScope.launch {
@@ -489,7 +498,7 @@ fun VusaScreen(
                 }
 
             } else { 
-                Text("Tap \'Refresh Data\' to load market information.")
+                Text("Tap 'Refresh Data' to load market information.")
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = {
                     focusManager.clearFocus()
@@ -535,7 +544,20 @@ fun VusaScreen(
         EditTransactionDialog(
             transaction = currentTransactionToEdit,
             onSave = { updatedTransaction ->
-                vusaViewModel.updateTransaction(updatedTransaction.copy(currency = currentTransactionToEdit.currency))
+                val calendar = Calendar.getInstance()
+                calendar.timeInMillis = updatedTransaction.transactionTimestamp // Use timestamp from dialog
+                calendar.set(Calendar.HOUR_OF_DAY, 12)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
+                val adjustedTimestamp = calendar.timeInMillis
+
+                vusaViewModel.updateTransaction(
+                    updatedTransaction.copy(
+                        currency = currentTransactionToEdit.currency,
+                        transactionTimestamp = adjustedTimestamp // Use adjusted timestamp
+                    )
+                )
                 transactionToEdit = null // Close Edit dialog
             },
             onDeleteConfirm = { // Add this new callback
@@ -598,7 +620,7 @@ fun TransactionItem(
     currentMarketPrice: Double?,
     onEditClick: (VusaTransaction) -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("dd/MM/yy HH:mm", Locale.getDefault()) }
+    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
 
     Row(
         modifier = Modifier
@@ -819,10 +841,12 @@ fun EditTransactionDialog(
                     val newPrice = editPrice.toDoubleOrNull()
 
                     if (newAmount != null && newPrice != null) {
+                        // The adjustment for timestamp to 12:00 PM will be done in the onSave lambda
+                        // of VusaScreen's transactionToEdit?.let block
                         onSave(transaction.copy(
                             amount = newAmount,
                             buyPrice = newPrice,
-                            transactionTimestamp = editSelectedDateMillis
+                            transactionTimestamp = editSelectedDateMillis // Pass the selected date millis
                         ))
                     }
                 }) { Text("Save") }
