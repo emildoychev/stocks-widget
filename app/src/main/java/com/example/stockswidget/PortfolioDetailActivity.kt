@@ -51,16 +51,16 @@ class PortfolioDetailActivity : ComponentActivity() {
                                     )
                                 }
                             },
-                            colors = TopAppBarDefaults.topAppBarColors( // Correctly applied to TopAppBar
-                                containerColor = Color.Black,
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color.Black, // Assuming black theme
                                 titleContentColor = Color.White,
                                 navigationIconContentColor = Color.White
                             )
                         )
                     }
-                    // The Scaffold containerColor will be taken from the theme (which is black)
+                    // Scaffold containerColor will be taken from the theme (black)
                 ) { innerPadding ->
-                    PortfolioDetailScreen(
+                    PortfolioDetailScreenContent( // Renamed for clarity from previous interactions
                         modifier = Modifier.padding(innerPadding),
                         portfolioTitle = portfolioTitle
                     )
@@ -71,7 +71,7 @@ class PortfolioDetailActivity : ComponentActivity() {
 }
 
 @Composable
-fun PortfolioDetailScreen(modifier: Modifier = Modifier, portfolioTitle: String) {
+fun PortfolioDetailScreenContent(modifier: Modifier = Modifier, portfolioTitle: String) {
     Box(
         modifier = modifier
             .fillMaxSize()
