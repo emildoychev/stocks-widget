@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -18,6 +20,8 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange // Added import
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -233,7 +237,9 @@ fun MainScreen(modifier: Modifier = Modifier, onShowVusaClick: () -> Unit) {
 @Composable
 fun Portfolio(
     transactions: List<VusaTransaction>,
-    currentMarketPrice: Double?
+    currentMarketPrice: Double?,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit
 ) {
     if (transactions.isNotEmpty() && currentMarketPrice != null && currentMarketPrice != 0.0) {
         val totalPortfolioValue = transactions.sumOf { it.amount * currentMarketPrice }
@@ -262,50 +268,60 @@ fun Portfolio(
             else -> "(-%)" // Undefined or 100% loss if cost is 0 and profit is negative (or portfolio value is 0 from a non-zero cost)
         }
 
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp, horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "AMS:VUSA\nPortfolio",
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                color = Color.White
-            )
-            Column(horizontalAlignment = Alignment.End) {
+        Column(modifier = Modifier.animateContentSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggleExpand)
+                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = formatCurrencyFixed(totalPortfolioValue, currencySymbol),
-                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                    text = "AMS:VUSA\nPortfolio",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    icon?.let {
-                        Icon(
-                            imageVector = it,
-                            contentDescription = if (totalProfitLoss > 0) "Profit" else "Loss",
-                            tint = iconColor,
-                            modifier = Modifier.size(28.dp) // Adjust size as needed
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = formatCurrencyFixed(totalPortfolioValue, currencySymbol),
+                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White
                         )
-                        Spacer(modifier = Modifier.width(4.dp)) // Space between icon and text
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            icon?.let {
+                                Icon(
+                                    imageVector = it,
+                                    contentDescription = if (totalProfitLoss > 0) "Profit" else "Loss",
+                                    tint = iconColor,
+                                    modifier = Modifier.size(28.dp) // Adjust size as needed
+                                )
+                                Spacer(modifier = Modifier.width(4.dp)) // Space between icon and text
+                            }
+                            Text(
+                                text = formatCurrencyFixed(totalProfitLoss, currencySymbol),
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                color = profitLossColor
+                            )
+                            Spacer(modifier = Modifier.width(4.dp)) // Space between amount and percentage
+                            Text(
+                                text = percentageString,
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                color = profitLossColor
+                            )
+                        }
                     }
-                    Text(
-                        text = formatCurrencyFixed(totalProfitLoss, currencySymbol),
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                        color = profitLossColor
-                    )
-                    Spacer(modifier = Modifier.width(4.dp)) // Space between amount and percentage
-                    Text(
-                        text = percentageString,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                        color = profitLossColor
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        tint = Color.White
                     )
                 }
             }
+            Divider() // Add a divider below the portfolio summary
         }
-        Divider() // Add a divider below the portfolio summary
     }
 }
 
@@ -335,6 +351,8 @@ fun VusaScreen(
 
     var showDeleteConfirmationDialog by remember { mutableStateOf<VusaTransaction?>(null) }
     var transactionToEdit by remember { mutableStateOf<VusaTransaction?>(null) }
+
+    var isTransactionsExpanded by remember { mutableStateOf(false) } // State for expanding/collapsing
 
     val focusManager = LocalFocusManager.current
 
@@ -384,203 +402,215 @@ fun VusaScreen(
                 Text("Close Price: ${vusaData.closePrice}, Last Update: ${vusaData.lastUpdateTime}", style = MaterialTheme.typography.bodyLarge)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Input fields Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = amountInput,
-                        onValueChange = { newText ->
-                            val filtered = newText.foldIndexed("") { _, acc, char ->
-                                if (char.isDigit()) acc + char
-                                else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
-                                else acc
-                            }
-                            val parts = filtered.split('.', limit = 2)
-                            val integerPart = parts[0]
-                            val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Keep existing input logic
-                            amountInput = when {
-                                fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
-                                integerPart.isEmpty() && filtered.contains('.') -> "0."
-                                else -> integerPart
-                            }
-                        },
-                        label = { Text("Amount") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        trailingIcon = if (amountInput.isNotEmpty()) {
-                            {
-                                IconButton(
-                                    onClick = { amountInput = "" },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Clear,
-                                        "Clear",
-                                        Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        } else null
-                    )
-                    OutlinedTextField(
-                        value = priceInput,
-                        onValueChange = { newText ->
-                            val filtered = newText.foldIndexed("") { _, acc, char ->
-                                if (char.isDigit()) acc + char
-                                else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
-                                else acc
-                            }
-                            val parts = filtered.split('.', limit = 2)
-                            val integerPart = parts[0]
-                            val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Keep existing input logic
-                            priceInput = when {
-                                fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
-                                integerPart.isEmpty() && filtered.contains('.') -> "0."
-                                else -> integerPart
-                            }
-                        },
-                        label = { Text("Price") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        trailingIcon = if (priceInput.isNotEmpty()) {
-                            {
-                                IconButton(
-                                    onClick = { priceInput = "" },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Clear,
-                                        "Clear",
-                                        Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        } else null
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Date and Currency Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ClickableTextField(
-                        value = dateFormatter.format(Date(selectedBuyDateMillis)),
-                        label = "Buy Date",
-                        onClick = { showDatePickerDialog = true },
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                        trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date", modifier = Modifier.size(18.dp).offset(x = 4.dp)) }
-                    )
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(top = 8.dp), // Align with TextField baseline
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val currencies = listOf("€", "$", "Other")
-                        currencies.forEach { currency ->
-                            val isSelected = selectedCurrency == currency
-                            OutlinedButton(
-                                onClick = { selectedCurrency = currency },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight(), // Make buttons fill height
-                                contentPadding = PaddingValues(all = 8.dp),
-                                border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                ),
-                                shape = MaterialTheme.shapes.medium // Consistent shape
-                            ) {
-                                Text(currency, style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = {
-                        focusManager.clearFocus()
-                        val amount = amountInput.toDoubleOrNull()
-                        val buyPrice = priceInput.toDoubleOrNull()
-                        if (amount != null && buyPrice != null) {
-                            val calendar = Calendar.getInstance()
-                            calendar.timeInMillis = selectedBuyDateMillis
-                            calendar.set(Calendar.HOUR_OF_DAY, 12)
-                            calendar.set(Calendar.MINUTE, 0)
-                            calendar.set(Calendar.SECOND, 0)
-                            calendar.set(Calendar.MILLISECOND, 0)
-                            val adjustedTimestamp = calendar.timeInMillis
-
-                            vusaViewModel.insertTransaction(
-                                amount = amount,
-                                buyPrice = buyPrice,
-                                transactionTimestamp = adjustedTimestamp, // Use adjusted timestamp
-                                currency = selectedCurrency
-                            )
-                            amountInput = ""; priceInput = "" // Clear inputs
-                            coroutineScope.launch {
-                                snackbarHostState.showSnackbar(
-                                    message = "Transaction Saved!",
-                                    duration = SnackbarDuration.Short
-                                )
-                            }
-                            calculatedTotal = null // Clear any previous error message
-                        } else {
-                            calculatedTotal = "Invalid input. Please check amount and price."
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = amountInput.isNotBlank() && priceInput.isNotBlank() && !isLoading,
-                    shape = MaterialTheme.shapes.large
-                ) { Text("Save") }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (calculatedTotal != null) {
-                    Text(calculatedTotal!!, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Display Portfolio summary here
+                // Display Portfolio summary here, always visible
                 if (transactions.isNotEmpty()) {
                     Portfolio(
                         transactions = transactions,
-                        currentMarketPrice = vusaData?.rawClosePrice
+                        currentMarketPrice = vusaData?.rawClosePrice,
+                        isExpanded = isTransactionsExpanded,
+                        onToggleExpand = { isTransactionsExpanded = !isTransactionsExpanded }
                     )
                     Spacer(modifier = Modifier.height(8.dp)) // Add space after Portfolio info
                 }
 
-                if (transactions.isNotEmpty()) {
-                    LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        items(transactions, key = { it.id }) { transaction ->
-                            TransactionItem(
-                                transaction = transaction,
-                                currentMarketPrice = vusaData?.rawClosePrice,
-                                onEditClick = { transactionToEdit = it },
+                // Collapsible section for transaction inputs and list
+                AnimatedVisibility(visible = isTransactionsExpanded) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // Input fields Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = amountInput,
+                                onValueChange = { newText ->
+                                    val filtered = newText.foldIndexed("") { _, acc, char ->
+                                        if (char.isDigit()) acc + char
+                                        else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
+                                        else acc
+                                    }
+                                    val parts = filtered.split('.', limit = 2)
+                                    val integerPart = parts[0]
+                                    val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Keep existing input logic
+                                    amountInput = when {
+                                        fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
+                                        integerPart.isEmpty() && filtered.contains('.') -> "0."
+                                        else -> integerPart
+                                    }
+                                },
+                                label = { Text("Amount") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
+                                textStyle = MaterialTheme.typography.bodyMedium,
+                                trailingIcon = if (amountInput.isNotEmpty()) {
+                                    {
+                                        IconButton(
+                                            onClick = { amountInput = "" },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Clear,
+                                                "Clear",
+                                                Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                } else null
                             )
-                            Divider()
+                            OutlinedTextField(
+                                value = priceInput,
+                                onValueChange = { newText ->
+                                    val filtered = newText.foldIndexed("") { _, acc, char ->
+                                        if (char.isDigit()) acc + char
+                                        else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
+                                        else acc
+                                    }
+                                    val parts = filtered.split('.', limit = 2)
+                                    val integerPart = parts[0]
+                                    val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Keep existing input logic
+                                    priceInput = when {
+                                        fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
+                                        integerPart.isEmpty() && filtered.contains('.') -> "0."
+                                        else -> integerPart
+                                    }
+                                },
+                                label = { Text("Price") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
+                                textStyle = MaterialTheme.typography.bodyMedium,
+                                trailingIcon = if (priceInput.isNotEmpty()) {
+                                    {
+                                        IconButton(
+                                            onClick = { priceInput = "" },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Clear,
+                                                "Clear",
+                                                Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                } else null
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Date and Currency Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Min),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ClickableTextField(
+                                value = dateFormatter.format(Date(selectedBuyDateMillis)),
+                                label = "Buy Date",
+                                onClick = { showDatePickerDialog = true },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date", modifier = Modifier.size(18.dp).offset(x = 4.dp)) }
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .padding(top = 8.dp), // Align with TextField baseline
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val currencies = listOf("€", "$", "Other")
+                                currencies.forEach { currency ->
+                                    val isSelected = selectedCurrency == currency
+                                    OutlinedButton(
+                                        onClick = { selectedCurrency = currency },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight(), // Make buttons fill height
+                                        contentPadding = PaddingValues(all = 8.dp),
+                                        border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        shape = MaterialTheme.shapes.medium // Consistent shape
+                                    ) {
+                                        Text(currency, style = MaterialTheme.typography.bodyMedium)
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Button(
+                            onClick = {
+                                focusManager.clearFocus()
+                                val amount = amountInput.toDoubleOrNull()
+                                val buyPrice = priceInput.toDoubleOrNull()
+                                if (amount != null && buyPrice != null) {
+                                    val calendar = Calendar.getInstance()
+                                    calendar.timeInMillis = selectedBuyDateMillis
+                                    calendar.set(Calendar.HOUR_OF_DAY, 12)
+                                    calendar.set(Calendar.MINUTE, 0)
+                                    calendar.set(Calendar.SECOND, 0)
+                                    calendar.set(Calendar.MILLISECOND, 0)
+                                    val adjustedTimestamp = calendar.timeInMillis
+
+                                    vusaViewModel.insertTransaction(
+                                        amount = amount,
+                                        buyPrice = buyPrice,
+                                        transactionTimestamp = adjustedTimestamp, // Use adjusted timestamp
+                                        currency = selectedCurrency
+                                    )
+                                    amountInput = ""; priceInput = "" // Clear inputs
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            message = "Transaction Saved!",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                    }
+                                    calculatedTotal = null // Clear any previous error message
+                                } else {
+                                    calculatedTotal = "Invalid input. Please check amount and price."
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = amountInput.isNotBlank() && priceInput.isNotBlank() && !isLoading,
+                            shape = MaterialTheme.shapes.large
+                        ) { Text("Save") }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (calculatedTotal != null) {
+                            Text(calculatedTotal!!, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        if (transactions.isNotEmpty()) {
+                            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                items(transactions, key = { it.id }) { transaction ->
+                                    TransactionItem(
+                                        transaction = transaction,
+                                        currentMarketPrice = vusaData?.rawClosePrice,
+                                        onEditClick = { transactionToEdit = it },
+                                    )
+                                    Divider()
+                                }
+                            }
+                        } else {
+                            Text("No transactions saved yet.", style = MaterialTheme.typography.bodyMedium)
                         }
                     }
-                } else {
+                }
+                 // If transactions are empty and not expanded, show "No transactions" message or it will be hidden
+                if (transactions.isEmpty() && !isTransactionsExpanded) {
                     Text("No transactions saved yet.", style = MaterialTheme.typography.bodyMedium)
                 }
+
 
             } else {
                 Text("Tap 'Refresh Data' to load market information.")
