@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +22,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color // Added import
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource // Added import
 import com.example.stockswidget.R // Added import
 import androidx.compose.ui.text.input.KeyboardType
@@ -205,12 +208,21 @@ fun VusaScreen(
     var showDeleteConfirmationDialog by remember { mutableStateOf<VusaTransaction?>(null) }
     var transactionToEdit by remember { mutableStateOf<VusaTransaction?>(null) }
 
+    val focusManager = LocalFocusManager.current
+
     LaunchedEffect(transactions) {
         Log.d("VusaScreen", "Transactions list updated. Size: ${transactions.size}")
     }
 
     Column(
-        modifier = modifier.fillMaxSize().padding(16.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = {
+                    focusManager.clearFocus()
+                })
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
@@ -259,7 +271,20 @@ fun VusaScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
                     textStyle = MaterialTheme.typography.bodyMedium, // Smaller font
-                    trailingIcon = { if (amountInput.isNotEmpty()) IconButton(onClick = { amountInput = "" }) { Icon(Icons.Filled.Clear, "Clear", Modifier.size(18.dp).offset(x = (4).dp)) } }
+                    trailingIcon = if (amountInput.isNotEmpty()) {
+                        {
+                            IconButton(
+                                onClick = { amountInput = "" },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Clear,
+                                    "Clear",
+                                    Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    } else null
                 )
                 OutlinedTextField(
                     value = priceInput,
@@ -282,7 +307,20 @@ fun VusaScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
                     textStyle = MaterialTheme.typography.bodyMedium, // Smaller font
-                    trailingIcon = { if (priceInput.isNotEmpty()) IconButton(onClick = { priceInput = "" }) { Icon(Icons.Filled.Clear, "Clear", Modifier.size(18.dp).offset(x = (4).dp)) } }
+                    trailingIcon = if (priceInput.isNotEmpty()) {
+                        {
+                            IconButton(
+                                onClick = { priceInput = "" },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Clear,
+                                    "Clear",
+                                    Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    } else null
                 )
                 ClickableTextField(
                     value = dateFormatter.format(Date(selectedBuyDateMillis)),
@@ -296,6 +334,7 @@ fun VusaScreen(
 
             Button(
                 onClick = {
+                    focusManager.clearFocus() // Clear focus on button click as well
                     val amount = amountInput.toDoubleOrNull()
                     val buyPrice = priceInput.toDoubleOrNull()
                     if (amount != null && buyPrice != null) {
@@ -348,14 +387,23 @@ fun VusaScreen(
             } else {
                 Text("No transactions saved yet.", style = MaterialTheme.typography.bodySmall)
             }
-             Spacer(modifier = Modifier.weight(0.1f))
-            Button(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
+             Spacer(modifier = Modifier.weight(0.1f)) // Use weight to push to bottom if content is less
+            Button(
+                onClick = {
+                    focusManager.clearFocus()
+                    onRefresh()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text("Refresh Market Data")
             }
         } else {
             Text("Tap 'Refresh Data' to load market information.")
             Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onRefresh) { Text("Refresh Data") }
+            Button(onClick = {
+                focusManager.clearFocus()
+                onRefresh()
+            }) { Text("Refresh Data") }
         }
     }
 
