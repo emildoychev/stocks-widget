@@ -252,6 +252,17 @@ fun Portfolio(
             else -> null to profitLossColor // No icon if neutral
         }
 
+        val percentageString = when {
+            totalCost != 0.0 -> {
+                val percentage = (totalProfitLoss / totalCost) * 100.0
+                String.format(Locale.US, "(%+.2f%%)", percentage)
+            }
+            totalProfitLoss > 0 -> "(+∞%)" // Infinite gain if cost is 0 and profit is positive
+            totalProfitLoss == 0.0 -> "(0.00%)" // No change if cost and profit are both 0
+            else -> "(-%)" // Undefined or 100% loss if cost is 0 and profit is negative (or portfolio value is 0 from a non-zero cost)
+        }
+
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -282,6 +293,12 @@ fun Portfolio(
                     }
                     Text(
                         text = formatCurrencyFixed(totalProfitLoss, currencySymbol),
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = profitLossColor
+                    )
+                    Spacer(modifier = Modifier.width(4.dp)) // Space between amount and percentage
+                    Text(
+                        text = percentageString,
                         style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                         color = profitLossColor
                     )
@@ -738,9 +755,12 @@ fun TransactionItem(
                     minimumFractionDigits = 2
                     maximumFractionDigits = 2
                 }
-                " (${numberFormat.format(percentage)}%)"
-            } else {
-                "" // No percentage if initial value was zero
+                String.format(Locale.US, " (%+.2f%%)", percentage)
+            } else if (profitOrLoss > 0) {
+                 " (+∞%)"
+            }
+             else {
+                "" // No percentage if initial value was zero or P/L is also zero
             }
 
             val profitLossColor = when {
