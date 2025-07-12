@@ -282,7 +282,7 @@ fun VusaScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
                     textStyle = MaterialTheme.typography.bodyMedium, // Smaller font
-                    trailingIcon = { if (amountInput.isNotEmpty()) IconButton(onClick = { amountInput = "" }) { Icon(Icons.Filled.Clear, "Clear", Modifier.size(18.dp).offset(x = (4).dp)) } }
+                    trailingIcon = { if (priceInput.isNotEmpty()) IconButton(onClick = { priceInput = "" }) { Icon(Icons.Filled.Clear, "Clear", Modifier.size(18.dp).offset(x = (4).dp)) } }
                 )
                 ClickableTextField(
                     value = dateFormatter.format(Date(selectedBuyDateMillis)),
