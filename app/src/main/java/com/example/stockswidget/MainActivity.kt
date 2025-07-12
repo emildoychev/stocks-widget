@@ -271,7 +271,7 @@ fun Portfolio(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "AMS:VUSA Portfolio",
+                text = "AMS:VUSA\nPortfolio",
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                 color = Color.White
             )
@@ -293,13 +293,13 @@ fun Portfolio(
                     }
                     Text(
                         text = formatCurrencyFixed(totalProfitLoss, currencySymbol),
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                         color = profitLossColor
                     )
                     Spacer(modifier = Modifier.width(4.dp)) // Space between amount and percentage
                     Text(
                         text = percentageString,
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                         color = profitLossColor
                     )
                 }
