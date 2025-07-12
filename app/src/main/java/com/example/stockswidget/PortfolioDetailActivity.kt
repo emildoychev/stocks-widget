@@ -260,21 +260,12 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit) {
                     isLoading = false
                 }
             },
-            label = { Text("Enter stock symbol or name", color = Color.Gray) }, // Hint color
+            label = { Text("Enter stock symbol or name") }, // Hint color
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester),
             singleLine = true,
-            shape = MaterialTheme.shapes.large,
-            colors = OutlinedTextFieldDefaults.colors( // Custom colors for text field
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                cursorColor = Color.White,
-                focusedBorderColor = Color.White,
-                unfocusedBorderColor = Color.Gray,
-                focusedLabelColor = Color.White,
-                unfocusedLabelColor = Color.Gray
-            )
+            shape = MaterialTheme.shapes.large
         )
 
         Spacer(modifier = Modifier.height(16.dp))
