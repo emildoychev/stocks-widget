@@ -67,8 +67,8 @@ fun formatCurrency(amount: Double, currencySymbol: String): String {
         maximumFractionDigits = 2
     }
     return when (currencySymbol) {
-        "€" -> "€${format.format(amount)}"
-        "$" -> "$${format.format(amount)}"
+        "€" -> "€ ${format.format(amount)}"
+        "$" -> "$ ${format.format(amount)}"
         "Other" -> format.format(amount) // No symbol for "Other"
         else -> format.format(amount) // Default, no symbol
     }
@@ -635,7 +635,7 @@ fun TransactionItem(
                             imageVector = it,
                             contentDescription = if (profitOrLoss > 0) "Profit" else "Loss",
                             tint = iconColor,
-                            modifier = Modifier.size(16.dp) // Adjust size as needed
+                            modifier = Modifier.size(20.dp) // Adjust size as needed
                         )
                         Spacer(modifier = Modifier.width(4.dp)) // Space between icon and text
                     }
@@ -645,7 +645,7 @@ fun TransactionItem(
                             profitOrLoss < 0 -> "$profitLossText"
                             else -> "P/L: $profitLossText"
                         },
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = profitLossColor
                     )
                 }
