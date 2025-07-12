@@ -239,7 +239,8 @@ fun Portfolio(
     transactions: List<VusaTransaction>,
     currentMarketPrice: Double?,
     isExpanded: Boolean,
-    onToggleExpand: () -> Unit
+    onToggleExpand: () -> Unit,
+    onAddFirstTransactionClick: () -> Unit // Added new parameter
 ) {
     if (transactions.isNotEmpty() && currentMarketPrice != null && currentMarketPrice != 0.0) {
         val totalPortfolioValue = transactions.sumOf { it.amount * currentMarketPrice }
@@ -322,6 +323,21 @@ fun Portfolio(
             }
             Divider() // Add a divider below the portfolio summary
         }
+    } else if (transactions.isEmpty()) { // Added else if condition
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "No transactions yet.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = onAddFirstTransactionClick) {
+                Text("Add First Transaction")
+            }
+        }
     }
 }
 
@@ -402,16 +418,15 @@ fun VusaScreen(
                 Text("Close Price: ${vusaData.closePrice}, Last Update: ${vusaData.lastUpdateTime}", style = MaterialTheme.typography.bodyLarge)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Display Portfolio summary here, always visible
-                if (transactions.isNotEmpty()) {
-                    Portfolio(
-                        transactions = transactions,
-                        currentMarketPrice = vusaData?.rawClosePrice,
-                        isExpanded = isTransactionsExpanded,
-                        onToggleExpand = { isTransactionsExpanded = !isTransactionsExpanded }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp)) // Add space after Portfolio info
-                }
+                Portfolio(
+                    transactions = transactions,
+                    currentMarketPrice = vusaData?.rawClosePrice,
+                    isExpanded = isTransactionsExpanded,
+                    onToggleExpand = { isTransactionsExpanded = !isTransactionsExpanded },
+                    onAddFirstTransactionClick = { isTransactionsExpanded = true } // Updated Portfolio call
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
 
                 // Collapsible section for transaction inputs and list
                 AnimatedVisibility(visible = isTransactionsExpanded) {
@@ -602,13 +617,19 @@ fun VusaScreen(
                                 }
                             }
                         } else {
-                            Text("No transactions saved yet.", style = MaterialTheme.typography.bodyMedium)
+                            // This text is now shown inside the Portfolio composable when transactions are empty
+                            // and the "Add First Transaction" button is visible.
+                            // If isTransactionsExpanded is true and transactions are still empty (e.g., after deleting all),
+                            // this area would be where new transactions are added.
+                            // Consider if any message is needed here if isTransactionsExpanded is true but list is empty.
+                            // For now, removing the explicit "No transactions saved yet." here to avoid duplication.
                         }
                     }
                 }
-                 // If transactions are empty and not expanded, show "No transactions" message or it will be hidden
+                 // If transactions are empty and not expanded, the Portfolio composable shows the "Add First Transaction" button.
+                 // The "No transactions saved yet." message inside this if block is removed as it's handled by Portfolio.
                 if (transactions.isEmpty() && !isTransactionsExpanded) {
-                    Text("No transactions saved yet.", style = MaterialTheme.typography.bodyMedium)
+                    // Content is now handled by the Portfolio composable when transactions are empty.
                 }
 
 
