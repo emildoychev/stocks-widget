@@ -2,6 +2,7 @@ package com.example.stockswidget
 
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -24,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color // Added import
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource // Added import
 import com.example.stockswidget.R // Added import
@@ -202,9 +204,9 @@ fun VusaScreen(
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     var selectedCurrency by remember { mutableStateOf("€") }
 
-
+    val context = LocalContext.current
     var calculatedTotal by remember { mutableStateOf<String?>(null) }
-    var showSaveConfirmation by remember { mutableStateOf(false) }
+    // showSaveConfirmation is no longer needed
 
     val transactions by vusaViewModel.allTransactions.collectAsState(initial = emptyList())
 
@@ -334,25 +336,25 @@ fun VusaScreen(
                     .fillMaxWidth()
                     .height(IntrinsicSize.Min), // Ensures Row height is based on tallest child
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp) // Space between Buy Date and Currency Button group
+                horizontalArrangement = Arrangement.spacedBy(8.dp) 
             ) {
                 ClickableTextField(
                     value = dateFormatter.format(Date(selectedBuyDateMillis)),
                     label = "Buy Date",
                     onClick = { showDatePickerDialog = true },
                     modifier = Modifier
-                        .weight(1f) // Takes first half of this row
-                        .fillMaxHeight(), // Fills the intrinsic height
+                        .weight(1f) 
+                        .fillMaxHeight(), 
                     trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date", modifier = Modifier.size(18.dp).offset(x = 4.dp)) }
                 )
 
                 // Row for Currency Buttons
                 Row(
                     modifier = Modifier
-                        .weight(1f) // Takes second half of this row
-                        .fillMaxHeight() // Fills the intrinsic height
+                        .weight(1f) 
+                        .fillMaxHeight() 
                         .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp), // Small space between buttons
+                    horizontalArrangement = Arrangement.spacedBy(4.dp), 
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val currencies = listOf("€", "$", "Other")
@@ -362,8 +364,8 @@ fun VusaScreen(
                         OutlinedButton(
                             onClick = { selectedCurrency = currency },
                             modifier = Modifier
-                                .weight(1f) // Each button takes equal share of the currency row
-                                .fillMaxHeight(), // Fills the height of this inner Row
+                                .weight(1f) 
+                                .fillMaxHeight(), 
                             contentPadding = PaddingValues(all = 8.dp),
                             border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
                             colors = ButtonDefaults.outlinedButtonColors(
@@ -381,7 +383,7 @@ fun VusaScreen(
 
             Button(
                 onClick = {
-                    focusManager.clearFocus() // Clear focus on button click as well
+                    focusManager.clearFocus() 
                     val amount = amountInput.toDoubleOrNull()
                     val buyPrice = priceInput.toDoubleOrNull()
                     if (amount != null && buyPrice != null) {
@@ -392,13 +394,10 @@ fun VusaScreen(
                         )
                         amountInput = ""; priceInput = ""
                         // selectedBuyDateMillis = System.currentTimeMillis() // Optionally reset date
-                        showSaveConfirmation = true
-                        val currentClosePrice = vusaData.rawClosePrice
-                        calculatedTotal = if (currentClosePrice != 0.0) {
-                            NumberFormat.getCurrencyInstance(Locale.GERMANY).format(amount * currentClosePrice)
-                        } else "Market data unavailable for current value."
+                        Toast.makeText(context, "Transaction Saved!", Toast.LENGTH_SHORT).show()
+                        // calculatedTotal is no longer set here for successful save
                     } else {
-                        calculatedTotal = "Invalid input."; showSaveConfirmation = false
+                        calculatedTotal = "Invalid input."
                     }
                 },
                 modifier = Modifier.fillMaxWidth(), 
@@ -408,10 +407,9 @@ fun VusaScreen(
             
             Spacer(modifier = Modifier.height(8.dp)) 
 
-            if (showSaveConfirmation) {
-                Text("Transaction Saved!", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                calculatedTotal?.let { Text("Calculated Current Value: $it", style = MaterialTheme.typography.titleMedium) }
-            } else if (calculatedTotal != null) {
+            // Removed the if (showSaveConfirmation) block
+            // Display only error message for calculatedTotal if it's not null (i.e., "Invalid input.")
+            if (calculatedTotal != null) {
                 Text(calculatedTotal!!, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }
 
@@ -434,16 +432,8 @@ fun VusaScreen(
             } else {
                 Text("No transactions saved yet.", style = MaterialTheme.typography.bodySmall)
             }
-             Spacer(modifier = Modifier.weight(0.1f)) // Use weight to push to bottom if content is less
-            Button(
-                onClick = {
-                    focusManager.clearFocus()
-                    onRefresh()
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Refresh Market Data")
-            }
+            // Removed the "Refresh Market Data" button that was here
+            // Spacer(modifier = Modifier.weight(0.1f)) // This spacer might need adjustment or removal
         } else {
             Text("Tap 'Refresh Data' to load market information.")
             Spacer(modifier = Modifier.height(16.dp))
