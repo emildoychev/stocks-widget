@@ -611,20 +611,27 @@ fun TransactionItem(
         // Child 1: Column for Amount, Buy Price, Date
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                "Amount: ${formatDynamicDecimal(transaction.amount)}", // Updated
-                style = MaterialTheme.typography.bodyMedium
+                "AMS:VUSA", // Updated
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                color = Color.White
             )
             Text(
-                "Buy Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}", // Will use updated formatCurrency
-                style = MaterialTheme.typography.bodyMedium
+                "Amount: ${formatDynamicDecimal(transaction.amount)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.LightGray
             )
             Text(
-                "Date: ${dateFormat.format(Date(transaction.transactionTimestamp))}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "Buy Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}", // Updated
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.LightGray
+            )
+            Text(
+                "Buy Date: ${dateFormat.format(Date(transaction.transactionTimestamp))}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.LightGray
             )
         }
 
