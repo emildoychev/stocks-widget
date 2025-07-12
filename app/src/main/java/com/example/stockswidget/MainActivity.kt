@@ -12,7 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Clear // Will be replaced
+import androidx.compose.material.icons.filled.DateRange // Added import
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -20,6 +21,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color // Added import
+import androidx.compose.ui.res.painterResource // Added import
+import com.example.stockswidget.R // Added import
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -148,7 +151,7 @@ suspend fun fetchVusaPriceData(): VusaData {
                     try {
                         val date = Date(lastBarUpdateTime * 1000L)
                         val sdf = SimpleDateFormat("h:mm a", Locale.US)
-                        sdf.timeZone = TimeZone.getDefault() // Use device's default timezone
+                        sdf.timeZone = TimeZone.getDefault() // Use device\'s default timezone
                         sdf.format(date)
                     } catch (e: Exception) {
                         "Time Format Error"
@@ -229,75 +232,65 @@ fun VusaScreen(
             Text("Last Update: ${vusaData.lastUpdateTime}", style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Column for input fields
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = amountInput,
-                        onValueChange = { newText ->
-                            val filtered = newText.foldIndexed("") { _, acc, char ->
-                                if (char.isDigit()) acc + char
-                                else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
-                                else acc
-                            }
-                            val parts = filtered.split('.', limit = 2)
-                            val integerPart = parts[0]
-                            val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
-                            amountInput = when {
-                                fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
-                                integerPart.isEmpty() && filtered.contains('.') -> "0."
-                                else -> integerPart
-                            }
-                        },
-                        label = { Text("Amount") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
-                        trailingIcon = { if (amountInput.isNotEmpty()) IconButton(onClick = { amountInput = "" }) { Icon(Icons.Filled.Clear, "Clear", Modifier.size(18.dp)) } }
-                    )
-                    OutlinedTextField(
-                        value = priceInput,
-                        onValueChange = { newText ->
-                            val filtered = newText.foldIndexed("") { _, acc, char ->
-                                if (char.isDigit()) acc + char
-                                else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
-                                else acc
-                            }
-                            val parts = filtered.split('.', limit = 2)
-                            val integerPart = parts[0]
-                            val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
-                            priceInput = when {
-                                fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
-                                integerPart.isEmpty() && filtered.contains('.') -> "0."
-                                else -> integerPart
-                            }
-                        },
-                        label = { Text("Price") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
-                        trailingIcon = { if (priceInput.isNotEmpty()) IconButton(onClick = { priceInput = "" }) { Icon(Icons.Filled.Clear, "Clear", Modifier.size(18.dp)) } }
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp)) 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp) 
-                ) {
-                    ClickableTextField(
-                        value = dateFormatter.format(Date(selectedBuyDateMillis)),
-                        label = "Buy Date",
-                        onClick = { showDatePickerDialog = true },
-                        modifier = Modifier.weight(1f)
-                    )
-                    // Spacer to take up remaining space if you want the date field to not be full width
-                    // If you want the date field to be full width on this row, remove the Spacer below
-                    // and adjust the ClickableTextField's weight if there were other elements.
-                    // For a single element to be full width, no weight is strictly needed if it's the only one.
-                }
+            // Row for input fields
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = amountInput,
+                    onValueChange = { newText ->
+                        val filtered = newText.foldIndexed("") { _, acc, char ->
+                            if (char.isDigit()) acc + char
+                            else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
+                            else acc
+                        }
+                        val parts = filtered.split('.', limit = 2)
+                        val integerPart = parts[0]
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
+                        amountInput = when {
+                            fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
+                            integerPart.isEmpty() && filtered.contains('.') -> "0."
+                            else -> integerPart
+                        }
+                    },
+                    label = { Text("Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
+                    textStyle = MaterialTheme.typography.bodyMedium, // Smaller font
+                    trailingIcon = { if (amountInput.isNotEmpty()) IconButton(onClick = { amountInput = "" }) { Icon(Icons.Filled.Clear, "Clear", Modifier.size(18.dp).offset(x = (4).dp)) } }
+                )
+                OutlinedTextField(
+                    value = priceInput,
+                    onValueChange = { newText ->
+                        val filtered = newText.foldIndexed("") { _, acc, char ->
+                            if (char.isDigit()) acc + char
+                            else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
+                            else acc
+                        }
+                        val parts = filtered.split('.', limit = 2)
+                        val integerPart = parts[0]
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
+                        priceInput = when {
+                            fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
+                            integerPart.isEmpty() && filtered.contains('.') -> "0."
+                            else -> integerPart
+                        }
+                    },
+                    label = { Text("Price") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.weight(1f),
+                    textStyle = MaterialTheme.typography.bodyMedium, // Smaller font
+                    trailingIcon = { if (amountInput.isNotEmpty()) IconButton(onClick = { amountInput = "" }) { Icon(Icons.Filled.Clear, "Clear", Modifier.size(18.dp).offset(x = (4).dp)) } }
+                )
+                ClickableTextField(
+                    value = dateFormatter.format(Date(selectedBuyDateMillis)),
+                    label = "Buy Date",
+                    onClick = { showDatePickerDialog = true },
+                    modifier = Modifier.weight(1f),
+                    trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date", modifier = Modifier.size(18.dp).offset(x = 4.dp)) }
+                )
             }
             Spacer(modifier = Modifier.height(16.dp)) 
 
@@ -435,6 +428,7 @@ fun ClickableTextField(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium, // Smaller font
             trailingIcon = trailingIcon,
             colors = OutlinedTextFieldDefaults.colors( // Customize disabled colors
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
@@ -539,6 +533,7 @@ fun EditTransactionDialog(
                     },
                     label = { Text("Amount") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    textStyle = MaterialTheme.typography.bodyMedium, // Smaller font
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -548,6 +543,7 @@ fun EditTransactionDialog(
                         val filtered = newValue.foldIndexed("") { _, acc, char ->
                             if (char.isDigit()) acc + char
                             else if ((char == '.' || char == ',') && !acc.contains('.') && !acc.contains(',')) acc + char.toString().replace(',', '.')
+                           
                             else acc
                         }
                         val parts = filtered.split('.', limit = 2)
@@ -561,6 +557,7 @@ fun EditTransactionDialog(
                     },
                     label = { Text("Price (€)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    textStyle = MaterialTheme.typography.bodyMedium, // Smaller font
                     singleLine = true
                 )
             }
