@@ -46,6 +46,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.math.BigDecimal // Added import
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.NumberFormat
@@ -60,17 +61,41 @@ data class VusaData(
     val lastUpdateTime: String = "Loading..."
 )
 
-// Helper function to format currency based on the symbol
+fun formatDynamicDecimal(value: Double): String {
+    if (value.isNaN() || value.isInfinite()) {
+        return value.toString() // Or a placeholder like "N/A"
+    }
+    // Check if it's a whole number
+    if (value % 1.0 == 0.0) {
+        return value.toLong().toString()
+    }
+    // For numbers with decimals, use BigDecimal to strip trailing zeros accurately
+    return BigDecimal(value.toString()).stripTrailingZeros().toPlainString()
+}
+
+// Helper function to format currency based on the symbol (dynamic decimals)
 fun formatCurrency(amount: Double, currencySymbol: String): String {
-    val format = NumberFormat.getNumberInstance(Locale.US).apply {
+    val formattedNumber = formatDynamicDecimal(amount)
+    return when (currencySymbol) {
+        "€" -> "€ $formattedNumber"
+        "$" -> "$ $formattedNumber"
+        "Other" -> formattedNumber // No symbol for "Other"
+        else -> formattedNumber // Default, no symbol
+    }
+}
+
+// Helper function to format currency with fixed two decimal places
+fun formatCurrencyFixed(amount: Double, currencySymbol: String): String {
+    val numberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
         minimumFractionDigits = 2
         maximumFractionDigits = 2
     }
+    val formattedNumber = numberFormat.format(amount)
     return when (currencySymbol) {
-        "€" -> "€ ${format.format(amount)}"
-        "$" -> "$ ${format.format(amount)}"
-        "Other" -> format.format(amount) // No symbol for "Other"
-        else -> format.format(amount) // Default, no symbol
+        "€" -> "€ $formattedNumber"
+        "$" -> "$ $formattedNumber"
+        "Other" -> formattedNumber // No symbol for "Other"
+        else -> formattedNumber // Default, no symbol
     }
 }
 
@@ -166,7 +191,7 @@ suspend fun fetchVusaPriceData(): VusaData {
                 val closePrice = jsonObject.optDouble("close", Double.NaN)
                 val lastBarUpdateTime = jsonObject.optLong("last_bar_update_time", -1L)
 
-                val formattedPriceDisplay = if (closePrice.isNaN()) "N/A" else "€${String.format(Locale.US, "%.2f", closePrice)}"
+                val formattedPriceDisplay = if (closePrice.isNaN()) "N/A" else formatCurrencyFixed(closePrice, "€") // Use formatCurrencyFixed for display
                 val rawPrice = if (closePrice.isNaN()) 0.0 else closePrice
 
                 val formattedTime = if (lastBarUpdateTime == -1L) {
@@ -296,7 +321,7 @@ fun VusaScreen(
                             }
                             val parts = filtered.split('.', limit = 2)
                             val integerPart = parts[0]
-                            val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
+                            val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Keep existing input logic
                             amountInput = when {
                                 fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
                                 integerPart.isEmpty() && filtered.contains('.') -> "0."
@@ -332,7 +357,7 @@ fun VusaScreen(
                             }
                             val parts = filtered.split('.', limit = 2)
                             val integerPart = parts[0]
-                            val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
+                            val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Keep existing input logic
                             priceInput = when {
                                 fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
                                 integerPart.isEmpty() && filtered.contains('.') -> "0."
@@ -589,11 +614,11 @@ fun TransactionItem(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                "Amount: ${transaction.amount}",
+                "Amount: ${formatDynamicDecimal(transaction.amount)}", // Updated
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                "Buy Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}",
+                "Buy Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}", // Will use updated formatCurrency
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
@@ -608,8 +633,8 @@ fun TransactionItem(
             val totalBuyValue = transaction.amount * transaction.buyPrice
             val currentValue = transaction.amount * marketPrice
             val profitOrLoss = currentValue - totalBuyValue
-            val profitLossText = formatCurrency(profitOrLoss, transaction.currency)
-
+            val profitLossText = formatCurrencyFixed(profitOrLoss, transaction.currency) // Use formatCurrencyFixed
+            
             val percentageString = if (totalBuyValue != 0.0) {
                 val percentage = (profitOrLoss / totalBuyValue) * 100
                 val numberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
@@ -637,7 +662,7 @@ fun TransactionItem(
                 modifier = Modifier.padding(horizontal = 4.dp)
             ) {
                 Text(
-                    text = "${formatCurrency(currentValue, transaction.currency)}",
+                    text = "${formatCurrencyFixed(currentValue, transaction.currency)}", // Use formatCurrencyFixed
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                     color = Color.White // Keeping original color for current value
                 )
@@ -677,7 +702,7 @@ fun DeleteConfirmationDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Confirm Deletion") },
-        text = { Text("Are you sure you want to delete this transaction? Amount: ${transaction.amount} Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}") },
+        text = { Text("Are you sure you want to delete this transaction? Amount: ${formatDynamicDecimal(transaction.amount)} Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}") }, // Updated
         confirmButton = {
             Button(
                 onClick = onConfirmDelete,
@@ -698,8 +723,8 @@ fun EditTransactionDialog(
     onDeleteConfirm: () -> Unit, // New callback for delete
     onDismiss: () -> Unit
 ) {
-    var editAmount by remember { mutableStateOf(transaction.amount.toString()) }
-    var editPrice by remember(transaction.buyPrice) { mutableStateOf(String.format(Locale.US, "%.4f", transaction.buyPrice)) }
+    var editAmount by remember { mutableStateOf(formatDynamicDecimal(transaction.amount)) } // Updated
+    var editPrice by remember(transaction.buyPrice) { mutableStateOf(formatDynamicDecimal(transaction.buyPrice)) } // Updated
     var editSelectedDateMillis by remember { mutableStateOf(transaction.transactionTimestamp) }
     var showEditDatePickerDialog by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
@@ -719,7 +744,7 @@ fun EditTransactionDialog(
                         }
                         val parts = filtered.split('.', limit = 2)
                         val integerPart = parts[0]
-                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Keep existing input logic
                         editAmount = when {
                             fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
                             integerPart.isEmpty() && filtered.contains('.') -> "0."
@@ -743,7 +768,7 @@ fun EditTransactionDialog(
                         }
                         val parts = filtered.split('.', limit = 2)
                         val integerPart = parts[0]
-                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Keep existing input logic
                         editPrice = when {
                             fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
                             integerPart.isEmpty() && filtered.contains('.') -> "0."
@@ -940,4 +965,3 @@ fun TransactionItemPreviewOtherLoss() {
         TransactionItem(transaction = transaction, currentMarketPrice = 45.0, onEditClick = {})
     }
 }
-
