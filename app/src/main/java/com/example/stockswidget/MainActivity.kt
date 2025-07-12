@@ -2,6 +2,7 @@ package com.example.stockswidget
 
 import android.os.Bundle
 import android.util.Log
+// import android.widget.Toast // No longer needed directly in VusaScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,7 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.DateRange // Added import
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -24,9 +25,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Color // Added import
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+// import androidx.compose.ui.res.painterResource // No longer needed if not using R.drawable.ic_clear
+// import com.example.stockswidget.R // No longer needed if not using R.drawable.ic_clear
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,6 +44,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -165,7 +170,6 @@ suspend fun fetchVusaPriceData(): VusaData {
                 val closePrice = jsonObject.optDouble("close", Double.NaN)
                 val lastBarUpdateTime = jsonObject.optLong("last_bar_update_time", -1L)
 
-                // For rawClosePrice, we just need the double value.
                 val formattedPriceDisplay = if (closePrice.isNaN()) "N/A" else "€${String.format(Locale.GERMANY, "%.2f", closePrice)}"
                 val rawPrice = if (closePrice.isNaN()) 0.0 else closePrice
 
@@ -422,6 +426,8 @@ fun VusaScreen(
                                 currency = selectedCurrency // Pass selected currency
                             )
                             amountInput = ""; priceInput = "" // Clear inputs
+                            // selectedBuyDateMillis = System.currentTimeMillis() // Optionally reset date
+                            // selectedCurrency = "€" // Optionally reset currency
                             coroutineScope.launch {
                                 snackbarHostState.showSnackbar(
                                     message = "Transaction Saved!",
@@ -466,7 +472,7 @@ fun VusaScreen(
                 }
 
             } else { // Fallback if vusaData is null and not loading (e.g. initial state before fetch)
-                Text("Tap '''Refresh Data''' to load market information.")
+                Text("Tap 'Refresh Data' to load market information.")
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = {
                     focusManager.clearFocus()
@@ -576,10 +582,14 @@ fun TransactionItem(
         modifier = Modifier
             .padding(vertical = 12.dp) // Increased padding for better spacing
             .fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.SpaceBetween, // This will space out the three main children
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Child 1: Column for Amount, Buy Price, Profit/Loss, Date
+        Column(
+            modifier = Modifier.weight(1f), // Takes up available space on the left
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             Text(
                 "Amount: ${transaction.amount}",
                 style = MaterialTheme.typography.bodyMedium
@@ -590,23 +600,15 @@ fun TransactionItem(
             )
 
             currentMarketPrice?.let { marketPrice ->
-                // #3 Current Value
-                val currentValue = transaction.amount * marketPrice
-                Text(
-                    "Current Value: ${formatCurrency(currentValue, transaction.currency)}", // #2 Use currency
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-
-                // #4 Profit/Loss
+                // Profit/Loss calculation remains here
                 val totalBuyValue = transaction.amount * transaction.buyPrice
+                val currentValue = transaction.amount * marketPrice // Still need this for P/L
                 val profitOrLoss = currentValue - totalBuyValue
                 val profitLossText = formatCurrency(profitOrLoss, transaction.currency)
-
                 val profitLossColor = when {
                     profitOrLoss > 0 -> Color(0xFF4CAF50) // Green
                     profitOrLoss < 0 -> Color(0xFFF44336) // Red
-                    else -> MaterialTheme.colorScheme.onSurface // Default color for zero
+                    else -> MaterialTheme.colorScheme.onSurface
                 }
                 Text(
                     text = when {
@@ -624,6 +626,19 @@ fun TransactionItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
+        // Child 2: Current Value Text (Large and to the right of the first column)
+        currentMarketPrice?.let { marketPrice ->
+            val currentValue = transaction.amount * marketPrice
+            Text(
+                text = "CV: ${formatCurrency(currentValue, transaction.currency)}", // Changed label to "CV: " for brevity
+                style = MaterialTheme.typography.headlineSmall, // Larger text style
+                color = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.padding(horizontal = 4.dp) // Add some horizontal padding
+            )
+        }
+
+        // Child 3: Row for Edit/Delete buttons (far right)
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { onEditClick(transaction) }) {
                 Icon(Icons.Filled.Edit, contentDescription = "Edit Transaction")
@@ -645,7 +660,7 @@ fun DeleteConfirmationDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Confirm Deletion") },
-        text = { Text("Are you sure you want to delete this transaction?\nAmount: ${transaction.amount}, Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}") },
+        text = { Text("Are you sure you want to delete this transaction? Amount: ${transaction.amount}, Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}") }, // NEVER CHANGE THIS LINE OF CODE!
         confirmButton = {
             Button(
                 onClick = onConfirmDelete,
