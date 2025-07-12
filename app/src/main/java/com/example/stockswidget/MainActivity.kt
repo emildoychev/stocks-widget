@@ -237,9 +237,15 @@ fun Portfolio(
 ) {
     if (transactions.isNotEmpty() && currentMarketPrice != null && currentMarketPrice != 0.0) {
         val totalPortfolioValue = transactions.sumOf { it.amount * currentMarketPrice }
-        // Assuming all transactions are for the same currency for simplicity in portfolio value display.
-        // You might want to adjust this if transactions can have different currencies.
+        val totalCost = transactions.sumOf { it.amount * it.buyPrice }
+        val totalProfitLoss = totalPortfolioValue - totalCost
         val currencySymbol = transactions.first().currency 
+
+        val profitLossColor = when {
+            totalProfitLoss > 0 -> Color(0xFF4CAF50) // Green
+            totalProfitLoss < 0 -> Color(0xFFF44336) // Red
+            else -> Color.White // Or MaterialTheme.colorScheme.onSurface if you prefer
+        }
 
         Row(
             modifier = Modifier
@@ -253,11 +259,18 @@ fun Portfolio(
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                 color = Color.White
             )
-            Text(
-                text = formatCurrencyFixed(totalPortfolioValue, currencySymbol),
-                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                color = Color.White
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = formatCurrencyFixed(totalPortfolioValue, currencySymbol),
+                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White
+                )
+                Text(
+                    text = formatCurrencyFixed(totalProfitLoss, currencySymbol),
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    color = profitLossColor
+                )
+            }
         }
         Divider() // Add a divider below the portfolio summary
     }
