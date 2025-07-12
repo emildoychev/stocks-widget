@@ -291,19 +291,18 @@ fun VusaScreen(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                 TextButton(onClick = onBack) { Text("Back") }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             if (isLoading) {
                 CircularProgressIndicator()
             } else if (errorMessage != null) {
                 Text("Error: $errorMessage", color = MaterialTheme.colorScheme.error)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Button(onClick = onRefresh) { Text("Retry") }
             } else if (vusaData != null) {
                 Text("VUSA Data", style = MaterialTheme.typography.headlineSmall)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Market Close Price: ${vusaData.closePrice}", style = MaterialTheme.typography.bodyLarge)
-                Text("Last Update: ${vusaData.lastUpdateTime}", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Close Price: ${vusaData.closePrice}, Last Update: ${vusaData.lastUpdateTime}", style = MaterialTheme.typography.bodyLarge)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Input fields Row
@@ -481,8 +480,6 @@ fun VusaScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (transactions.isNotEmpty()) {
-                    Text("VUSA Transactions", style = MaterialTheme.typography.headlineSmall)
-                    Spacer(modifier = Modifier.height(8.dp))
                     LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         items(transactions, key = { it.id }) { transaction ->
                             TransactionItem(
