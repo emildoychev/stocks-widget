@@ -1,3 +1,4 @@
+
 package com.example.stockswidget
 
 import android.content.Context // Added import for SharedPreferences
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete // Added for portfolio delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -34,6 +36,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext // Added import for SharedPreferences
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -123,6 +126,10 @@ class MainActivity : ComponentActivity() {
                 var showAddPortfolioDialog by remember { mutableStateOf(false) }
                 var newPortfolioTitle by remember { mutableStateOf("") }
 
+                // State for portfolio deletion confirmation
+                var showDeletePortfolioConfirmDialog by remember { mutableStateOf(false) }
+                var portfolioTitleToDelete by remember { mutableStateOf<String?>(null) }
+
                 // SharedPreferences logic for customPortfolios
                 val context = LocalContext.current
                 val sharedPreferences = remember { context.getSharedPreferences("portfolio_prefs", Context.MODE_PRIVATE) }
@@ -141,7 +148,9 @@ class MainActivity : ComponentActivity() {
                     bottomBar = {
                         BottomAppBar {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Button(
@@ -184,7 +193,11 @@ class MainActivity : ComponentActivity() {
                         onRefresh = { fetchVusaData() },
                         snackbarHostState = snackbarHostState,
                         coroutineScope = coroutineScope,
-                        customPortfolios = customPortfolios
+                        customPortfolios = customPortfolios,
+                        onDeletePortfolioRequest = { portfolioTitle ->
+                            portfolioTitleToDelete = portfolioTitle
+                            showDeletePortfolioConfirmDialog = true
+                        }
                     )
                     LaunchedEffect(Unit) {
                         if (vusaData == null && !isLoading) {
@@ -204,20 +217,26 @@ class MainActivity : ComponentActivity() {
                                     value = newPortfolioTitle,
                                     onValueChange = { newPortfolioTitle = it },
                                     label = { Text("Portfolio Title") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
+                                    singleLine = true, shape = MaterialTheme.shapes.large,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
                                 )
                             },
                             confirmButton = {
                                 Button(
                                     onClick = {
                                         if (newPortfolioTitle.isNotBlank()) {
-                                            customPortfolios.add(newPortfolioTitle.trim())
+                                            val portfolioTitle = newPortfolioTitle.trim()
+                                            customPortfolios.add(portfolioTitle)
                                             // Save to SharedPreferences
                                             with(sharedPreferences.edit()) {
                                                 putStringSet("custom_portfolio_titles", customPortfolios.toSet())
                                                 apply()
                                             }
+                                            // Launch PortfolioDetailActivity
+                                            val intent = PortfolioDetailActivity.newIntent(context, portfolioTitle)
+                                            context.startActivity(intent)
+
                                             newPortfolioTitle = ""
                                             showAddPortfolioDialog = false
                                         }
@@ -231,6 +250,45 @@ class MainActivity : ComponentActivity() {
                                 TextButton(onClick = {
                                     showAddPortfolioDialog = false
                                     newPortfolioTitle = ""
+                                }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+
+                    // Dialog for confirming portfolio deletion
+                    if (showDeletePortfolioConfirmDialog && portfolioTitleToDelete != null) {
+                        AlertDialog(
+                            onDismissRequest = {
+                                showDeletePortfolioConfirmDialog = false
+                                portfolioTitleToDelete = null
+                            },
+                            title = { Text("Confirm Deletion") },
+                            text = { Text("Are you sure you want to delete the portfolio \"$portfolioTitleToDelete\"?") },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        portfolioTitleToDelete?.let { title ->
+                                            customPortfolios.remove(title)
+                                            // Update SharedPreferences
+                                            with(sharedPreferences.edit()) {
+                                                putStringSet("custom_portfolio_titles", customPortfolios.toSet())
+                                                apply()
+                                            }
+                                        }
+                                        showDeletePortfolioConfirmDialog = false
+                                        portfolioTitleToDelete = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("Delete")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    showDeletePortfolioConfirmDialog = false
+                                    portfolioTitleToDelete = null
                                 }) {
                                     Text("Cancel")
                                 }
@@ -385,7 +443,9 @@ fun Portfolio(
         }
     } else if (transactions.isEmpty()) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -412,7 +472,8 @@ fun VusaScreen(
     onRefresh: () -> Unit,
     snackbarHostState: SnackbarHostState,
     coroutineScope: CoroutineScope,
-    customPortfolios: List<String> // New parameter
+    customPortfolios: List<String>,
+    onDeletePortfolioRequest: (portfolioTitle: String) -> Unit // New parameter for delete
 ) {
     var amountInput by remember { mutableStateOf("") }
     var priceInput by remember { mutableStateOf("") }
@@ -425,7 +486,7 @@ fun VusaScreen(
 
     val transactions by vusaViewModel.allTransactions.collectAsState(initial = emptyList())
 
-    var showDeleteConfirmationDialog by remember { mutableStateOf<VusaTransaction?>(null) }
+    var showDeleteTransactionConfirmDialog by remember { mutableStateOf<VusaTransaction?>(null) } // For VusaTransaction deletion
     var transactionToEdit by remember { mutableStateOf<VusaTransaction?>(null) }
 
     var isTransactionsExpanded by remember { mutableStateOf(false) }
@@ -469,12 +530,27 @@ fun VusaScreen(
                 Button(onClick = onRefresh) { Text("Retry") }
             } else if (vusaData != null) {
                 customPortfolios.forEach { portfolioTitle ->
-                    Text(
-                        text = portfolioTitle,
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = portfolioTitle,
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            modifier = Modifier.weight(1f) // Allow text to take available space
+                        )
+                        IconButton(onClick = { onDeletePortfolioRequest(portfolioTitle) }) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = "Delete Portfolio $portfolioTitle",
+                                tint = Color.LightGray // Or MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
@@ -588,13 +664,15 @@ fun VusaScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight(),
-                                trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date", modifier = Modifier.size(18.dp).offset(x = 4.dp)) }
+                                trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date", modifier = Modifier
+                                    .size(18.dp)
+                                    .offset(x = 4.dp)) }
                             )
                             Row(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .fillMaxHeight()
-                                    .padding(top = 8.dp),
+                                    .fillMaxHeight(),
+                                    //.padding(top = 8.dp), // Removed as per prior request for alignment
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -607,14 +685,18 @@ fun VusaScreen(
                                             .weight(1f)
                                             .fillMaxHeight(),
                                         contentPadding = PaddingValues(all = 8.dp),
-                                        border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+                                        border = BorderStroke(1.dp, if (isSelected) Color(0xFF666666) else Color(0xFF555555)),
                                         colors = ButtonDefaults.outlinedButtonColors(
-                                            containerColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else Color.Transparent,
-                                            contentColor = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface
+                                            containerColor = if (isSelected) Color(0xFF444444) else Color(0xFF222222),
+                                            contentColor = Color.White // Default content color
                                         ),
                                         shape = MaterialTheme.shapes.medium
                                     ) {
-                                        Text(currency, style = MaterialTheme.typography.bodyMedium)
+                                        Text(
+                                            text = currency,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color.White // Explicitly white text
+                                        )
                                     }
                                 }
                             }
@@ -667,7 +749,11 @@ fun VusaScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         if (transactions.isNotEmpty()) {
-                            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .weight(1f) // Ensure LazyColumn takes remaining space if needed
+                                    .fillMaxWidth()
+                            ) {
                                 items(transactions, key = { it.id }) { transaction ->
                                     TransactionItem(
                                         transaction = transaction,
@@ -714,14 +800,14 @@ fun VusaScreen(
         }
     }
 
-    showDeleteConfirmationDialog?.let { transactionToDelete ->
+    showDeleteTransactionConfirmDialog?.let { transactionToDelete -> // For VusaTransaction deletion
         DeleteConfirmationDialog(
             transaction = transactionToDelete,
             onConfirmDelete = {
                 vusaViewModel.deleteTransactionById(transactionToDelete.id)
-                showDeleteConfirmationDialog = null
+                showDeleteTransactionConfirmDialog = null
             },
-            onDismiss = { showDeleteConfirmationDialog = null }
+            onDismiss = { showDeleteTransactionConfirmDialog = null }
         )
     }
 
@@ -739,15 +825,15 @@ fun VusaScreen(
 
                 vusaViewModel.updateTransaction(
                     updatedTransaction.copy(
-                        currency = currentTransactionToEdit.currency,
+                        currency = currentTransactionToEdit.currency, // Persist original currency
                         transactionTimestamp = adjustedTimestamp
                     )
                 )
                 transactionToEdit = null
             },
-            onDeleteConfirm = {
-                showDeleteConfirmationDialog = currentTransactionToEdit
-                transactionToEdit = null
+            onDeleteConfirm = { // This is called when delete is confirmed from Edit dialog
+                showDeleteTransactionConfirmDialog = currentTransactionToEdit // Show the transaction delete dialog
+                transactionToEdit = null // Close edit dialog
             },
             onDismiss = {
                 transactionToEdit = null
@@ -780,7 +866,9 @@ fun ClickableTextField(
             label = { Text(label) },
             readOnly = true,
             enabled = false,
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(),
             shape = MaterialTheme.shapes.large,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium,
@@ -994,14 +1082,20 @@ fun EditTransactionDialog(
                     value = dateFormatter.format(Date(editSelectedDateMillis)),
                     label = "Transaction Date",
                     onClick = { showEditDatePickerDialog = true },
-                    modifier = Modifier.fillMaxWidth().height(64.dp),
-                    trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date", modifier = Modifier.size(18.dp).offset(x = 4.dp)) }
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp),
+                    trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date", modifier = Modifier
+                        .size(18.dp)
+                        .offset(x = 4.dp)) }
                 )
             }
         },
         confirmButton = {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
             ) {
                 TextButton(
@@ -1029,7 +1123,7 @@ fun EditTransactionDialog(
                 }) { Text("Save") }
             }
         },
-        dismissButton = null
+        dismissButton = null // No separate dismiss for this condensed layout
     )
 
     if (showEditDatePickerDialog) {
@@ -1109,7 +1203,8 @@ fun MainScreenPreview() {
             onRefresh = {},
             snackbarHostState = snackbarHostState,
             coroutineScope = coroutineScope,
-            customPortfolios = listOf("My Tech Portfolio", "Retirement Fund") // Sample custom portfolios
+            customPortfolios = listOf("My Tech Portfolio", "Retirement Fund"),
+            onDeletePortfolioRequest = {} // Added for preview
         )
     }
 }
@@ -1159,3 +1254,4 @@ fun TransactionItemPreviewOtherLoss() {
         TransactionItem(transaction = transaction, currentMarketPrice = 45.0, onEditClick = {})
     }
 }
+

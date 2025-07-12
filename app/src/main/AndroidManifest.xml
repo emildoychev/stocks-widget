@@ -26,9 +26,19 @@
             android:theme="@style/Theme.StocksWidget">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".PortfolioDetailActivity"
+            android:exported="false"
+            android:label="Portfolio Details" 
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.StocksWidget">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
         </activity>
 
         <receiver
