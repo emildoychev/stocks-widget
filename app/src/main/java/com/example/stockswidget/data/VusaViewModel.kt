@@ -12,12 +12,13 @@ class VusaViewModel(private val dao: VusaTransactionDao) : ViewModel() {
     val allTransactions: Flow<List<VusaTransaction>> = dao.getAllTransactions()
 
     // Function to insert a new transaction
-    fun insertTransaction(amount: Double, buyPrice: Double, transactionTimestamp: Long) { // Added transactionTimestamp
+    fun insertTransaction(amount: Double, buyPrice: Double, transactionTimestamp: Long, currency: String) { // Added currency
         viewModelScope.launch {
             val transaction = VusaTransaction(
                 amount = amount,
                 buyPrice = buyPrice,
-                transactionTimestamp = transactionTimestamp // Use the provided timestamp
+                transactionTimestamp = transactionTimestamp, // Use the provided timestamp
+                currency = currency // Store the currency
             )
             dao.insertTransaction(transaction)
         }

@@ -9,5 +9,6 @@ data class VusaTransaction(
     val id: Int = 0,
     val amount: Double,
     val buyPrice: Double,
-    val transactionTimestamp: Long = System.currentTimeMillis()
+    val transactionTimestamp: Long = System.currentTimeMillis(),
+    val currency: String // Added currency field
 )
