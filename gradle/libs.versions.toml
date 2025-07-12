@@ -11,6 +11,7 @@ composeBom = "2024.09.00"
 ksp = "2.0.21-1.0.26"
 room = "2.6.1"
 
+
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
