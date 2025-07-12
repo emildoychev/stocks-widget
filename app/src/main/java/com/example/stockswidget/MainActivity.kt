@@ -11,8 +11,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Delete // Added
-import androidx.compose.material.icons.filled.Edit // Added
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -191,19 +191,11 @@ fun VusaScreen(
 
     val transactions by vusaViewModel.allTransactions.collectAsState(initial = emptyList())
 
-    // State for managing dialogs
     var showDeleteConfirmationDialog by remember { mutableStateOf<VusaTransaction?>(null) }
     var transactionToEdit by remember { mutableStateOf<VusaTransaction?>(null) }
 
     LaunchedEffect(transactions) {
         Log.d("VusaScreen", "Transactions list updated. Size: ${transactions.size}")
-        if (transactions.isNotEmpty()) {
-            transactions.forEachIndexed { index, transaction ->
-                Log.d("VusaScreen", "Transaction $index: Amount=${transaction.amount}, Price=${transaction.buyPrice}, Timestamp=${transaction.transactionTimestamp}")
-            }
-        } else {
-            Log.d("VusaScreen", "Transactions list is currently empty after update.")
-        }
     }
 
     Column(
@@ -229,7 +221,6 @@ fun VusaScreen(
             Text("Last Update: ${vusaData.lastUpdateTime}", style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Input fields and Save button Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -314,9 +305,10 @@ fun VusaScreen(
                 Text("Saved Transactions", style = MaterialTheme.typography.headlineSmall)
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    items(transactions, key = { it.id }) { transaction -> // Added key for better performance
+                    items(transactions, key = { it.id }) { transaction ->
                         TransactionItem(
                             transaction = transaction,
+                            currentMarketPrice = vusaData?.rawClosePrice, // Pass the raw close price
                             onEditClick = { transactionToEdit = it },
                             onDeleteClick = { showDeleteConfirmationDialog = it }
                         )
@@ -324,10 +316,9 @@ fun VusaScreen(
                     }
                 }
             } else {
-                Log.d("VusaScreen", "UI: Transactions list is empty, not showing LazyColumn.")
                 Text("No transactions saved yet.", style = MaterialTheme.typography.bodySmall)
             }
-             Spacer(modifier = Modifier.weight(0.1f)) // Give some space, but not too much if list is long
+             Spacer(modifier = Modifier.weight(0.1f))
             Button(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
                 Text("Refresh Market Data")
             }
@@ -338,7 +329,6 @@ fun VusaScreen(
         }
     }
 
-    // Delete Confirmation Dialog
     showDeleteConfirmationDialog?.let { transactionToDelete ->
         DeleteConfirmationDialog(
             transaction = transactionToDelete,
@@ -350,7 +340,6 @@ fun VusaScreen(
         )
     }
 
-    // Edit Transaction Dialog
     transactionToEdit?.let { transaction ->
         EditTransactionDialog(
             transaction = transaction,
@@ -366,6 +355,7 @@ fun VusaScreen(
 @Composable
 fun TransactionItem(
     transaction: VusaTransaction,
+    currentMarketPrice: Double?, // New parameter
     onEditClick: (VusaTransaction) -> Unit,
     onDeleteClick: (VusaTransaction) -> Unit
 ) {
@@ -376,8 +366,16 @@ fun TransactionItem(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text("Amount: ${transaction.amount}", style = MaterialTheme.typography.bodyMedium)
-            Text("Price: €${String.format(Locale.GERMANY, "%.2f", transaction.buyPrice)}", style = MaterialTheme.typography.bodyMedium)
+            Text("Buy Price: €${String.format(Locale.GERMANY, "%.2f", transaction.buyPrice)}", style = MaterialTheme.typography.bodyMedium)
             Text("Date: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(transaction.transactionTimestamp))}", style = MaterialTheme.typography.bodySmall)
+            currentMarketPrice?.let { marketPrice ->
+                val currentValue = transaction.amount * marketPrice
+                Text(
+                    "Current Value: ${NumberFormat.getCurrencyInstance(Locale.GERMANY).format(currentValue)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
         }
         Row {
             IconButton(onClick = { onEditClick(transaction) }) {
@@ -403,7 +401,6 @@ fun DeleteConfirmationDialog(
         confirmButton = {
             Button(onClick = {
                 onConfirmDelete()
-                // onDismiss() // No longer needed here as onConfirmDelete will set showDeleteConfirmationDialog = null
             }) { Text("Delete") }
         },
         dismissButton = {
@@ -419,9 +416,7 @@ fun EditTransactionDialog(
     onDismiss: () -> Unit
 ) {
     var editAmount by remember { mutableStateOf(transaction.amount.toString()) }
-    // Ensure price is formatted for editing, using dot as decimal separator internally
     var editPrice by remember { mutableStateOf(String.format(Locale.US, "%.4f", transaction.buyPrice)) }
-
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -431,21 +426,16 @@ fun EditTransactionDialog(
                 OutlinedTextField(
                     value = editAmount,
                     onValueChange = { newValue ->
-                        // Allow only digits and one decimal point (either . or ,)
-                        val filtered = newValue.foldIndexed("") { index, acc, char ->
+                        val filtered = newValue.foldIndexed("") { _, acc, char ->
                             if (char.isDigit()) acc + char
-                            else if ((char == '.' || char == ',') && !acc.contains('.') && !acc.contains(',')) acc + char.toString().replace(',', '.') // Normalize to .
+                            else if ((char == '.' || char == ',') && !acc.contains('.') && !acc.contains(',')) acc + char.toString().replace(',', '.')
                             else acc
                         }
-                         val parts = filtered.split('.', limit = 2)
+                        val parts = filtered.split('.', limit = 2)
                         val integerPart = parts[0]
-                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Limit to 4 decimal places
-
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
                         editAmount = when {
-                            fractionalPart != null -> {
-                                if (integerPart.isEmpty()) "0.$fractionalPart"
-                                else "$integerPart.$fractionalPart"
-                            }
+                            fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
                             integerPart.isEmpty() && filtered.contains('.') -> "0."
                             else -> integerPart
                         }
@@ -458,21 +448,16 @@ fun EditTransactionDialog(
                 OutlinedTextField(
                     value = editPrice,
                     onValueChange = { newValue ->
-                        // Allow only digits and one decimal point (either . or ,)
-                         val filtered = newValue.foldIndexed("") { index, acc, char ->
+                        val filtered = newValue.foldIndexed("") { _, acc, char ->
                             if (char.isDigit()) acc + char
-                            else if ((char == '.' || char == ',') && !acc.contains('.') && !acc.contains(',')) acc + char.toString().replace(',', '.') // Normalize to .
+                            else if ((char == '.' || char == ',') && !acc.contains('.') && !acc.contains(',')) acc + char.toString().replace(',', '.')
                             else acc
                         }
                         val parts = filtered.split('.', limit = 2)
                         val integerPart = parts[0]
-                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null // Limit to 4 decimal places for price
-
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
                         editPrice = when {
-                            fractionalPart != null -> {
-                                if (integerPart.isEmpty()) "0.$fractionalPart"
-                                else "$integerPart.$fractionalPart"
-                            }
+                            fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
                             integerPart.isEmpty() && filtered.contains('.') -> "0."
                             else -> integerPart
                         }
@@ -486,12 +471,10 @@ fun EditTransactionDialog(
         confirmButton = {
             Button(onClick = {
                 val newAmount = editAmount.toDoubleOrNull()
-                // Price is already normalized to use '.' from onValueChange
                 val newPrice = editPrice.toDoubleOrNull()
                 if (newAmount != null && newPrice != null) {
                     onSave(transaction.copy(amount = newAmount, buyPrice = newPrice))
                 }
-                // onDismiss() // No longer needed here, onSave will set transactionToEdit = null
             }) { Text("Save") }
         },
         dismissButton = {
@@ -507,14 +490,12 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     }
 }
 
-// --- Previews with Fake ViewModel --- (Updated to reflect new DAO methods)
 class FakeVusaTransactionDao : VusaTransactionDao {
     private val _transactions = mutableListOf<VusaTransaction>()
     private val transactionsFlow = MutableStateFlow<List<VusaTransaction>>(emptyList())
     private var nextId = 1
 
     init {
-        // Sample data for previews
         val sampleData = listOf(
             VusaTransaction(id=nextId++, amount = 10.0, buyPrice = 80.50, transactionTimestamp = System.currentTimeMillis() - 200000),
             VusaTransaction(id=nextId++, amount = 5.0, buyPrice = 82.30, transactionTimestamp = System.currentTimeMillis() - 100000)
@@ -524,8 +505,6 @@ class FakeVusaTransactionDao : VusaTransactionDao {
     }
 
     override suspend fun insertTransaction(transaction: VusaTransaction) {
-        Log.d("FakeVusaTransactionDao", "insertTransaction called with: $transaction")
-        // Simulate autoincrement ID if id is 0 (default for new transactions)
         val newTransaction = if (transaction.id == 0) transaction.copy(id = nextId++) else transaction
         _transactions.add(0, newTransaction)
         _transactions.sortByDescending { it.transactionTimestamp }
@@ -536,14 +515,12 @@ class FakeVusaTransactionDao : VusaTransactionDao {
         val index = _transactions.indexOfFirst { it.id == transaction.id }
         if (index != -1) {
             _transactions[index] = transaction
-            _transactions.sortByDescending { it.transactionTimestamp } // Re-sort if timestamp could change, though not in this edit impl
             transactionsFlow.value = _transactions.toList()
         }
     }
 
     override fun getAllTransactions(): Flow<List<VusaTransaction>> = transactionsFlow
     override suspend fun getTransactionById(id: Int): VusaTransaction? = _transactions.find { it.id == id }
-
     override suspend fun deleteTransactionById(id: Int) {
         _transactions.removeAll { it.id == id }
         transactionsFlow.value = _transactions.toList()
@@ -576,8 +553,6 @@ fun VusaScreenPreviewDataLoadedWithList() {
 @Composable
 fun VusaScreenPreviewEditDialog() {
     StocksWidgetTheme {
-        // val viewModel = getPreviewVusaViewModel() // Not directly needed for dialog preview
-        // Manually trigger an edit for preview
         val sampleTransaction = remember { VusaTransaction(id = 1, amount = 10.0, buyPrice = 80.5, transactionTimestamp = System.currentTimeMillis()) }
         EditTransactionDialog(transaction = sampleTransaction, onSave = {}, onDismiss = {})
     }
@@ -591,4 +566,3 @@ fun VusaScreenPreviewDeleteDialog() {
         DeleteConfirmationDialog(transaction = sampleTransaction, onConfirmDelete = {}, onDismiss = {})
     }
 }
-
