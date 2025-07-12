@@ -70,7 +70,6 @@ class PortfolioDetailActivity : ComponentActivity() {
                                 }
                             },
                             colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = Color.Black, // Assuming black theme
                                 titleContentColor = Color.White,
                                 navigationIconContentColor = Color.White
                             )
@@ -103,8 +102,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                 if (showBottomSheet) {
                     ModalBottomSheet(
                         onDismissRequest = { showBottomSheet = false },
-                        sheetState = sheetState,
-                        containerColor = Color.Black // Set background to black
+                        sheetState = sheetState
                     ) {
                         SearchBottomSheetContent(
                             onDismiss = { showBottomSheet = false }
