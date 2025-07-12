@@ -2,7 +2,6 @@ package com.example.stockswidget
 
 import android.os.Bundle
 import android.util.Log
-// import android.widget.Toast // No longer needed directly in VusaScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,10 +14,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange // Added import
-import androidx.compose.material.icons.filled.Delete
-// import androidx.compose.material.icons.filled.Edit // No longer needed for TransactionItem
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -27,10 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color // Added import
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-// import androidx.compose.ui.res.painterResource // No longer needed if not using R.drawable.ic_clear
-// import com.example.stockswidget.R // No longer needed if not using R.drawable.ic_clear
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -44,7 +41,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -459,7 +455,6 @@ fun VusaScreen(
                                 transaction = transaction,
                                 currentMarketPrice = vusaData?.rawClosePrice, 
                                 onEditClick = { transactionToEdit = it },
-                                onDeleteClick = { showDeleteConfirmationDialog = it }
                             )
                             Divider()
                         }
@@ -510,16 +505,24 @@ fun VusaScreen(
         )
     }
 
-    transactionToEdit?.let { transaction ->
+    // When transactionToEdit is not null:
+    transactionToEdit?.let { currentTransactionToEdit ->
         EditTransactionDialog(
-            transaction = transaction,
+            transaction = currentTransactionToEdit,
             onSave = { updatedTransaction ->
-                vusaViewModel.updateTransaction(updatedTransaction.copy(currency = transaction.currency))
-                transactionToEdit = null
+                vusaViewModel.updateTransaction(updatedTransaction.copy(currency = currentTransactionToEdit.currency))
+                transactionToEdit = null // Close Edit dialog
             },
-            onDismiss = { transactionToEdit = null }
+            onDeleteConfirm = { // Add this new callback
+                showDeleteConfirmationDialog = currentTransactionToEdit // Trigger delete confirmation
+                transactionToEdit = null // Close Edit dialog
+            },
+            onDismiss = {
+                transactionToEdit = null // Close Edit dialog
+            }
         )
     }
+
 }
 
 
@@ -567,23 +570,22 @@ fun ClickableTextField(
 @Composable
 fun TransactionItem(
     transaction: VusaTransaction,
-    currentMarketPrice: Double?, 
-    onEditClick: (VusaTransaction) -> Unit,
-    onDeleteClick: (VusaTransaction) -> Unit
+    currentMarketPrice: Double?,
+    onEditClick: (VusaTransaction) -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("dd/MM/yy HH:mm", Locale.getDefault()) }
 
     Row(
         modifier = Modifier
-            .padding(vertical = 12.dp) 
+            .padding(vertical = 12.dp)
             .fillMaxWidth()
             .clickable { onEditClick(transaction) }, // Make the whole row clickable for editing
-        horizontalArrangement = Arrangement.SpaceBetween, 
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Child 1: Column for Amount, Buy Price, Profit/Loss, Date
+        // Child 1: Column for Amount, Buy Price, Date
         Column(
-            modifier = Modifier.weight(1f), 
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
@@ -591,30 +593,9 @@ fun TransactionItem(
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                "Buy Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}", 
+                "Buy Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}",
                 style = MaterialTheme.typography.bodyMedium
             )
-
-            currentMarketPrice?.let { marketPrice ->
-                val totalBuyValue = transaction.amount * transaction.buyPrice
-                val currentValue = transaction.amount * marketPrice 
-                val profitOrLoss = currentValue - totalBuyValue
-                val profitLossText = formatCurrency(profitOrLoss, transaction.currency)
-                val profitLossColor = when {
-                    profitOrLoss > 0 -> Color(0xFF4CAF50) // Green
-                    profitOrLoss < 0 -> Color(0xFFF44336) // Red
-                    else -> MaterialTheme.colorScheme.onSurface
-                }
-                Text(
-                    text = when {
-                        profitOrLoss > 0 -> "Profit: $profitLossText"
-                        profitOrLoss < 0 -> "Loss: $profitLossText" 
-                        else -> "P/L: $profitLossText"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = profitLossColor
-                )
-            }
             Text(
                 "Date: ${dateFormat.format(Date(transaction.transactionTimestamp))}",
                 style = MaterialTheme.typography.bodySmall,
@@ -622,23 +603,57 @@ fun TransactionItem(
             )
         }
 
-        // Child 2: Current Value Text 
+        // Child 2: Column for Current Value and Profit/Loss
         currentMarketPrice?.let { marketPrice ->
+            val totalBuyValue = transaction.amount * transaction.buyPrice
             val currentValue = transaction.amount * marketPrice
-            Text(
-                text = "CV: ${formatCurrency(currentValue, transaction.currency)}", 
-                style = MaterialTheme.typography.headlineSmall, 
-                color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.padding(horizontal = 4.dp) 
-            )
-        }
+            val profitOrLoss = currentValue - totalBuyValue
+            val profitLossText = formatCurrency(profitOrLoss, transaction.currency)
+            val profitLossColor = when {
+                profitOrLoss > 0 -> Color(0xFF4CAF50) // Green
+                profitOrLoss < 0 -> Color(0xFFF44336) // Red
+                else -> MaterialTheme.colorScheme.onSurface
+            }
+            val (icon, iconColor) = when {
+                profitOrLoss > 0 -> Icons.Filled.ArrowUpward to Color(0xFF4CAF50) // Green
+                profitOrLoss < 0 -> Icons.Filled.ArrowDownward to Color(0xFFF44336) // Red
+                else -> null to profitLossColor // No icon if neutral
+            }
 
-        // Child 3: Delete button (Edit button removed)
-        IconButton(onClick = { onDeleteClick(transaction) }) { 
-            Icon(Icons.Filled.Delete, contentDescription = "Delete Transaction")
+            Column(
+                horizontalAlignment = Alignment.End,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            ) {
+                Text(
+                    text = "${formatCurrency(currentValue, transaction.currency)}",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White // Keeping original color for current value
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    icon?.let {
+                        Icon(
+                            imageVector = it,
+                            contentDescription = if (profitOrLoss > 0) "Profit" else "Loss",
+                            tint = iconColor,
+                            modifier = Modifier.size(16.dp) // Adjust size as needed
+                        )
+                        Spacer(modifier = Modifier.width(4.dp)) // Space between icon and text
+                    }
+                    Text(
+                        text = when {
+                            profitOrLoss > 0 -> "$profitLossText"
+                            profitOrLoss < 0 -> "$profitLossText"
+                            else -> "P/L: $profitLossText"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = profitLossColor
+                    )
+                }
+            }
         }
     }
 }
+
 
 
 @Composable
@@ -650,7 +665,7 @@ fun DeleteConfirmationDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Confirm Deletion") },
-        text = { Text("Are you sure you want to delete this transaction?\nAmount: ${transaction.amount}\nPrice: ${formatCurrency(transaction.buyPrice, transaction.currency)}") }, //Gemini, never change this lone of code!
+        text = { Text("Are you sure you want to delete this transaction? Amount: ${transaction.amount} Price: ${formatCurrency(transaction.buyPrice, transaction.currency)}") },
         confirmButton = {
             Button(
                 onClick = onConfirmDelete,
@@ -667,11 +682,11 @@ fun DeleteConfirmationDialog(
 fun EditTransactionDialog(
     transaction: VusaTransaction,
     onSave: (VusaTransaction) -> Unit,
+    onDeleteConfirm: () -> Unit, // New callback for delete
     onDismiss: () -> Unit
 ) {
     var editAmount by remember { mutableStateOf(transaction.amount.toString()) }
     var editPrice by remember(transaction.buyPrice) { mutableStateOf(String.format(Locale.US, "%.4f", transaction.buyPrice)) }
-
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -688,7 +703,7 @@ fun EditTransactionDialog(
                         }
                         val parts = filtered.split('.', limit = 2)
                         val integerPart = parts[0]
-                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null 
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
                         editAmount = when {
                             fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
                             integerPart.isEmpty() && filtered.contains('.') -> "0."
@@ -712,14 +727,14 @@ fun EditTransactionDialog(
                         }
                         val parts = filtered.split('.', limit = 2)
                         val integerPart = parts[0]
-                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null 
+                        val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
                         editPrice = when {
                             fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
                             integerPart.isEmpty() && filtered.contains('.') -> "0."
                             else -> integerPart
                         }
                     },
-                    label = { Text("Price (${transaction.currency})") }, 
+                    label = { Text("Price (${transaction.currency})") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     textStyle = MaterialTheme.typography.bodyMedium,
                     singleLine = true,
@@ -728,23 +743,38 @@ fun EditTransactionDialog(
             }
         },
         confirmButton = {
-            Button(onClick = {
-                val newAmount = editAmount.toDoubleOrNull()
-                val newPrice = editPrice.toDoubleOrNull()
-
-                if (newAmount != null && newPrice != null) {
-                    onSave(transaction.copy(
-                        amount = newAmount,
-                        buyPrice = newPrice,
-                    ))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            ) {
+                TextButton(
+                    onClick = onDeleteConfirm, // Call the new delete confirm callback
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
                 }
-            }) { Text("Save") }
+                TextButton(
+                    onClick = onDismiss // Standard dismiss action
+                ) {
+                    Text("Cancel")
+                }
+                Button(onClick = {
+                    val newAmount = editAmount.toDoubleOrNull()
+                    val newPrice = editPrice.toDoubleOrNull()
+
+                    if (newAmount != null && newPrice != null) {
+                        onSave(transaction.copy(
+                            amount = newAmount,
+                            buyPrice = newPrice,
+                        ))
+                    }
+                }) { Text("Save") }
+            }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+        dismissButton = null // All actions are in the confirmButton Row
     )
 }
+
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
@@ -826,7 +856,7 @@ fun VusaScreenPreviewDataLoadedWithList() {
 fun VusaScreenPreviewEditDialog() {
     StocksWidgetTheme {
         val sampleTransaction = remember { VusaTransaction(id = 1, amount = 10.0, buyPrice = 80.5, transactionTimestamp = System.currentTimeMillis(), currency = "€") }
-        EditTransactionDialog(transaction = sampleTransaction, onSave = {}, onDismiss = {})
+        EditTransactionDialog(transaction = sampleTransaction, onSave = {}, onDeleteConfirm = {}, onDismiss = {})
     }
 }
 
@@ -844,7 +874,7 @@ fun VusaScreenPreviewDeleteDialog() {
 fun TransactionItemPreviewEuro() {
     StocksWidgetTheme {
         val transaction = VusaTransaction(id = 1, amount = 10.0, buyPrice = 80.50, currency = "€", transactionTimestamp = System.currentTimeMillis())
-        TransactionItem(transaction = transaction, currentMarketPrice = 85.50, onEditClick = {}, onDeleteClick = {})
+        TransactionItem(transaction = transaction, currentMarketPrice = 85.50, onEditClick = {})
     }
 }
 
@@ -853,7 +883,7 @@ fun TransactionItemPreviewEuro() {
 fun TransactionItemPreviewDollarProfit() {
     StocksWidgetTheme {
         val transaction = VusaTransaction(id = 1, amount = 5.0, buyPrice = 100.0, currency = "$", transactionTimestamp = System.currentTimeMillis())
-        TransactionItem(transaction = transaction, currentMarketPrice = 110.0, onEditClick = {}, onDeleteClick = {})
+        TransactionItem(transaction = transaction, currentMarketPrice = 110.0, onEditClick = {})
     }
 }
 
@@ -862,7 +892,7 @@ fun TransactionItemPreviewDollarProfit() {
 fun TransactionItemPreviewOtherLoss() {
     StocksWidgetTheme {
         val transaction = VusaTransaction(id = 1, amount = 20.0, buyPrice = 50.0, currency = "Other", transactionTimestamp = System.currentTimeMillis())
-        TransactionItem(transaction = transaction, currentMarketPrice = 45.0, onEditClick = {}, onDeleteClick = {})
+        TransactionItem(transaction = transaction, currentMarketPrice = 45.0, onEditClick = {})
     }
 }
 
