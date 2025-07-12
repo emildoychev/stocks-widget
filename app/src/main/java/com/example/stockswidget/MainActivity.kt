@@ -197,6 +197,10 @@ class MainActivity : ComponentActivity() {
                         onDeletePortfolioRequest = { portfolioTitle ->
                             portfolioTitleToDelete = portfolioTitle
                             showDeletePortfolioConfirmDialog = true
+                        },
+                        onPortfolioClick = { portfolioTitle -> // New lambda
+                            val intent = PortfolioDetailActivity.newIntent(context, portfolioTitle)
+                            context.startActivity(intent)
                         }
                     )
                     LaunchedEffect(Unit) {
@@ -233,12 +237,14 @@ class MainActivity : ComponentActivity() {
                                                 putStringSet("custom_portfolio_titles", customPortfolios.toSet())
                                                 apply()
                                             }
+                                            
+                                            // Reset title and dismiss dialog BEFORE starting activity
+                                            newPortfolioTitle = ""
+                                            showAddPortfolioDialog = false
+
                                             // Launch PortfolioDetailActivity
                                             val intent = PortfolioDetailActivity.newIntent(context, portfolioTitle)
                                             context.startActivity(intent)
-
-                                            newPortfolioTitle = ""
-                                            showAddPortfolioDialog = false
                                         }
                                     },
                                     enabled = newPortfolioTitle.isNotBlank()
@@ -265,7 +271,7 @@ class MainActivity : ComponentActivity() {
                                 portfolioTitleToDelete = null
                             },
                             title = { Text("Confirm Deletion") },
-                            text = { Text("Are you sure you want to delete the portfolio \"$portfolioTitleToDelete\"?") },
+                            text = { Text("Are you sure you want to delete the portfolio \"$portfolioTitleToDelete\"?" ) },
                             confirmButton = {
                                 Button(
                                     onClick = {
@@ -473,7 +479,8 @@ fun VusaScreen(
     snackbarHostState: SnackbarHostState,
     coroutineScope: CoroutineScope,
     customPortfolios: List<String>,
-    onDeletePortfolioRequest: (portfolioTitle: String) -> Unit // New parameter for delete
+    onDeletePortfolioRequest: (portfolioTitle: String) -> Unit, // New parameter for delete
+    onPortfolioClick: (String) -> Unit // Add this line
 ) {
     var amountInput by remember { mutableStateOf("") }
     var priceInput by remember { mutableStateOf("") }
@@ -541,7 +548,10 @@ fun VusaScreen(
                             text = portfolioTitle,
                             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                             color = Color.White,
-                            modifier = Modifier.weight(1f) // Allow text to take available space
+                            modifier = Modifier
+                                .weight(1f) // Allow text to take available space
+                                .padding(end = 8.dp) // Padding before delete icon
+                                .clickable { onPortfolioClick(portfolioTitle) } // Make text clickable
                         )
                         IconButton(onClick = { onDeletePortfolioRequest(portfolioTitle) }) {
                             Icon(
@@ -1204,7 +1214,8 @@ fun MainScreenPreview() {
             snackbarHostState = snackbarHostState,
             coroutineScope = coroutineScope,
             customPortfolios = listOf("My Tech Portfolio", "Retirement Fund"),
-            onDeletePortfolioRequest = {} // Added for preview
+            onDeletePortfolioRequest = {}, // Added for preview
+            onPortfolioClick = {} // Added for preview
         )
     }
 }
