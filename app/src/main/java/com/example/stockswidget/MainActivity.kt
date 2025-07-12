@@ -141,28 +141,20 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    if (showVusaScreen) {
-                        VusaScreen(
-                            modifier = Modifier.padding(innerPadding), // Apply padding from main scaffold
-                            vusaViewModel = vusaViewModel,
-                            vusaData = vusaData,
-                            isLoading = isLoading,
-                            errorMessage = errorMessage,
-                            onRefresh = { fetchVusaData() },
-                            onBack = { showVusaScreen = false },
-                            snackbarHostState = snackbarHostState, // Pass SnackbarHostState
-                            coroutineScope = coroutineScope // Pass CoroutineScope
-                        )
-                        LaunchedEffect(Unit) {
-                            if (vusaData == null && !isLoading) {
-                                fetchVusaData()
-                            }
+                    VusaScreen(
+                        modifier = Modifier.padding(innerPadding), // Apply padding from main scaffold
+                        vusaViewModel = vusaViewModel,
+                        vusaData = vusaData,
+                        isLoading = isLoading,
+                        errorMessage = errorMessage,
+                        onRefresh = { fetchVusaData() },
+                        snackbarHostState = snackbarHostState, // Pass SnackbarHostState
+                        coroutineScope = coroutineScope // Pass CoroutineScope
+                    )
+                    LaunchedEffect(Unit) {
+                        if (vusaData == null && !isLoading) {
+                            fetchVusaData()
                         }
-                    } else {
-                        MainScreen(
-                            modifier = Modifier.padding(innerPadding), // Apply padding from main scaffold
-                            onShowVusaClick = { showVusaScreen = true }
-                        )
                     }
                 }
             }
@@ -218,19 +210,6 @@ suspend fun fetchVusaPriceData(): VusaData {
         } finally {
             connection?.disconnect()
         }
-    }
-}
-
-@Composable
-fun MainScreen(modifier: Modifier = Modifier, onShowVusaClick: () -> Unit) {
-    Column(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Greeting(name = "Widget")
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onShowVusaClick) { Text("VUSA") }
     }
 }
 
@@ -350,7 +329,6 @@ fun VusaScreen(
     isLoading: Boolean,
     errorMessage: String?,
     onRefresh: () -> Unit,
-    onBack: () -> Unit,
     snackbarHostState: SnackbarHostState, // Added
     coroutineScope: CoroutineScope // Added
 ) {
@@ -401,11 +379,6 @@ fun VusaScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                TextButton(onClick = onBack) { Text("Back") }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-
             if (isLoading) {
                 CircularProgressIndicator()
             } else if (errorMessage != null) {
@@ -1015,14 +988,6 @@ fun EditTransactionDialog(
     }
 }
 
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Text(text = "Stocks $name")
-    }
-}
-
 // --- Preview and Fake DAO ---
 class FakeVusaTransactionDao : VusaTransactionDao {
     private val _transactions = mutableListOf<VusaTransaction>()
@@ -1065,15 +1030,9 @@ fun getPreviewVusaViewModel(): VusaViewModel {
     return VusaViewModel(FakeVusaTransactionDao())
 }
 
-@Preview(showBackground = true, name = "Main Screen Preview")
-@Composable
-fun MainScreenPreview() {
-    StocksWidgetTheme { MainScreen(onShowVusaClick = {}) }
-}
-
 @Preview(showBackground = true, name = "Vusa Screen - Data & List")
 @Composable
-fun VusaScreenPreviewDataLoadedWithList() {
+fun MainScreenPreview() {
     StocksWidgetTheme {
         val snackbarHostState = remember { SnackbarHostState() }
         val coroutineScope = rememberCoroutineScope()
@@ -1083,7 +1042,6 @@ fun VusaScreenPreviewDataLoadedWithList() {
             isLoading = false,
             errorMessage = null,
             onRefresh = {},
-            onBack = {},
             snackbarHostState = snackbarHostState,
             coroutineScope = coroutineScope
         )
@@ -1114,8 +1072,7 @@ fun VusaScreenPreviewDeleteDialog() {
 fun TransactionItemPreviewEuro() {
     StocksWidgetTheme {
         val transaction = VusaTransaction(id = 1, amount = 10.0, buyPrice = 80.50, currency = "€", transactionTimestamp = System.currentTimeMillis())
-        TransactionItem(transaction = transaction, currentMarketPrice = 85.50, onEditClick = {})
-    }
+        TransactionItem(transaction = transaction, currentMarketPrice = 85.50, onEditClick = {})}
 }
 
 @Preview(showBackground = true, name = "Transaction Item Preview - Dollar Profit")
@@ -1123,8 +1080,7 @@ fun TransactionItemPreviewEuro() {
 fun TransactionItemPreviewDollarProfit() {
     StocksWidgetTheme {
         val transaction = VusaTransaction(id = 1, amount = 5.0, buyPrice = 100.0, currency = "$", transactionTimestamp = System.currentTimeMillis())
-        TransactionItem(transaction = transaction, currentMarketPrice = 110.0, onEditClick = {})
-    }
+        TransactionItem(transaction = transaction, currentMarketPrice = 110.0, onEditClick = {})}
 }
 
 @Preview(showBackground = true, name = "Transaction Item Preview - Other Loss")
@@ -1132,6 +1088,5 @@ fun TransactionItemPreviewDollarProfit() {
 fun TransactionItemPreviewOtherLoss() {
     StocksWidgetTheme {
         val transaction = VusaTransaction(id = 1, amount = 20.0, buyPrice = 50.0, currency = "Other", transactionTimestamp = System.currentTimeMillis())
-        TransactionItem(transaction = transaction, currentMarketPrice = 45.0, onEditClick = {})
-    }
+        TransactionItem(transaction = transaction, currentMarketPrice = 45.0, onEditClick = {})}
 }
