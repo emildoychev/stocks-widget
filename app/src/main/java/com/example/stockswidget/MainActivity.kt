@@ -62,7 +62,7 @@ data class VusaData(
 
 // Helper function to format currency based on the symbol
 fun formatCurrency(amount: Double, currencySymbol: String): String {
-    val format = NumberFormat.getNumberInstance(Locale.GERMANY).apply {
+    val format = NumberFormat.getNumberInstance(Locale.US).apply {
         minimumFractionDigits = 2
         maximumFractionDigits = 2
     }
@@ -166,7 +166,7 @@ suspend fun fetchVusaPriceData(): VusaData {
                 val closePrice = jsonObject.optDouble("close", Double.NaN)
                 val lastBarUpdateTime = jsonObject.optLong("last_bar_update_time", -1L)
 
-                val formattedPriceDisplay = if (closePrice.isNaN()) "N/A" else "€${String.format(Locale.GERMANY, "%.2f", closePrice)}"
+                val formattedPriceDisplay = if (closePrice.isNaN()) "N/A" else "€${String.format(Locale.US, "%.2f", closePrice)}"
                 val rawPrice = if (closePrice.isNaN()) 0.0 else closePrice
 
                 val formattedTime = if (lastBarUpdateTime == -1L) {
@@ -175,7 +175,7 @@ suspend fun fetchVusaPriceData(): VusaData {
                     try {
                         val date = Date(lastBarUpdateTime * 1000L)
                         val sdf = SimpleDateFormat("h:mm a", Locale.US)
-                        sdf.timeZone = TimeZone.getDefault() // Use device's default timezone
+                        sdf.timeZone = TimeZone.getDefault() // Use device\'s default timezone
                         sdf.format(date)
                     } catch (e: Exception) {
                         "Time Format Error"
@@ -460,11 +460,11 @@ fun VusaScreen(
                         }
                     }
                 } else {
-                    Text("No transactions saved yet.", style = MaterialTheme.typography.bodySmall)
+                    Text("No transactions saved yet.", style = MaterialTheme.typography.bodyMedium)
                 }
 
             } else { 
-                Text("Tap 'Refresh Data' to load market information.")
+                Text("Tap \'Refresh Data\' to load market information.")
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = {
                     focusManager.clearFocus()
@@ -598,7 +598,7 @@ fun TransactionItem(
             )
             Text(
                 "Date: ${dateFormat.format(Date(transaction.transactionTimestamp))}",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -612,7 +612,11 @@ fun TransactionItem(
 
             val percentageString = if (totalBuyValue != 0.0) {
                 val percentage = (profitOrLoss / totalBuyValue) * 100
-                String.format(Locale.US, " (%.2f%%)", percentage)
+                val numberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
+                    minimumFractionDigits = 2
+                    maximumFractionDigits = 2
+                }
+                " (${numberFormat.format(percentage)}%)"
             } else {
                 "" // No percentage if initial value was zero
             }
@@ -686,6 +690,7 @@ fun DeleteConfirmationDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditTransactionDialog(
     transaction: VusaTransaction,
@@ -695,6 +700,9 @@ fun EditTransactionDialog(
 ) {
     var editAmount by remember { mutableStateOf(transaction.amount.toString()) }
     var editPrice by remember(transaction.buyPrice) { mutableStateOf(String.format(Locale.US, "%.4f", transaction.buyPrice)) }
+    var editSelectedDateMillis by remember { mutableStateOf(transaction.transactionTimestamp) }
+    var showEditDatePickerDialog by remember { mutableStateOf(false) }
+    val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -721,10 +729,10 @@ fun EditTransactionDialog(
                     label = { Text("Amount") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     textStyle = MaterialTheme.typography.bodyMedium,
-                    singleLine = true,
+                    singleLine = true, shape = MaterialTheme.shapes.large,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = editPrice,
                     onValueChange = { newValue ->
@@ -745,8 +753,16 @@ fun EditTransactionDialog(
                     label = { Text("Price (${transaction.currency})") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     textStyle = MaterialTheme.typography.bodyMedium,
-                    singleLine = true,
+                    singleLine = true, shape = MaterialTheme.shapes.large,
                     modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                ClickableTextField(
+                    value = dateFormatter.format(Date(editSelectedDateMillis)),
+                    label = "Transaction Date",
+                    onClick = { showEditDatePickerDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(64.dp),
+                    trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "Select Date", modifier = Modifier.size(18.dp).offset(x = 4.dp)) }
                 )
             }
         },
@@ -774,6 +790,7 @@ fun EditTransactionDialog(
                         onSave(transaction.copy(
                             amount = newAmount,
                             buyPrice = newPrice,
+                            transactionTimestamp = editSelectedDateMillis
                         ))
                     }
                 }) { Text("Save") }
@@ -781,6 +798,26 @@ fun EditTransactionDialog(
         },
         dismissButton = null // All actions are in the confirmButton Row
     )
+
+    if (showEditDatePickerDialog) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = editSelectedDateMillis)
+        DatePickerDialog(
+            onDismissRequest = { showEditDatePickerDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let {
+                        editSelectedDateMillis = it
+                    }
+                    showEditDatePickerDialog = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDatePickerDialog = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 }
 
 
