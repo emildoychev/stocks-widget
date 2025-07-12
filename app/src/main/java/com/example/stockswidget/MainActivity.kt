@@ -230,6 +230,39 @@ fun MainScreen(modifier: Modifier = Modifier, onShowVusaClick: () -> Unit) {
     }
 }
 
+@Composable
+fun Portfolio(
+    transactions: List<VusaTransaction>,
+    currentMarketPrice: Double?
+) {
+    if (transactions.isNotEmpty() && currentMarketPrice != null && currentMarketPrice != 0.0) {
+        val totalPortfolioValue = transactions.sumOf { it.amount * currentMarketPrice }
+        // Assuming all transactions are for the same currency for simplicity in portfolio value display.
+        // You might want to adjust this if transactions can have different currencies.
+        val currencySymbol = transactions.first().currency 
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp, horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "AMS:VUSA Portfolio",
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                color = Color.White
+            )
+            Text(
+                text = formatCurrencyFixed(totalPortfolioValue, currencySymbol),
+                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                color = Color.White
+            )
+        }
+        Divider() // Add a divider below the portfolio summary
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VusaScreen(
@@ -479,6 +512,15 @@ fun VusaScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Display Portfolio summary here
+                if (transactions.isNotEmpty()) {
+                    Portfolio(
+                        transactions = transactions,
+                        currentMarketPrice = vusaData?.rawClosePrice
+                    )
+                    Spacer(modifier = Modifier.height(8.dp)) // Add space after Portfolio info
+                }
+
                 if (transactions.isNotEmpty()) {
                     LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         items(transactions, key = { it.id }) { transaction ->
@@ -634,7 +676,7 @@ fun TransactionItem(
         ) {
             Text(
                 "AMS:VUSA", // Updated
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                 color = Color.White
             )
             Text(
