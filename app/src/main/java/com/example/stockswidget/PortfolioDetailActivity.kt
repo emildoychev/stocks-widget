@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.TrendingDown
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -314,16 +316,25 @@ fun PortfolioDetailScreenMainContent(
 
         // Display Total Profit/Loss Summary
         if (transactions.isNotEmpty()) {
-            Text(
-                text = "Total P/L: ${formatCurrencyFixed(totalPortfolioProfitLoss, portfolioCurrency ?: "€")} " +
-                       (if (totalPortfolioCost != 0.0) {
-                           val percent = (totalPortfolioProfitLoss / totalPortfolioCost) * 100
-                           "(${formatCurrencyFixed(percent, "%")})"
-                       } else {""}),
-                style = MaterialTheme.typography.titleMedium, // Or another appropriate style
-                color = profitLossColor,
-                modifier = Modifier.padding(bottom = 8.dp) // Adjusted padding
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+                if (totalPortfolioProfitLoss != 0.0) {
+                    Icon(
+                        imageVector = if (totalPortfolioProfitLoss > 0) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown,
+                        contentDescription = if (totalPortfolioProfitLoss > 0) "Trending Up" else "Trending Down",
+                        tint = profitLossColor,
+                        modifier = Modifier.size(24.dp).padding(end = 4.dp)
+                    )
+                }
+                Text(
+                    text = "Total P/L: ${formatCurrencyFixed(totalPortfolioProfitLoss, portfolioCurrency ?: "€")} " +
+                           (if (totalPortfolioCost != 0.0) {
+                               val percent = (totalPortfolioProfitLoss / totalPortfolioCost) * 100
+                               "(${formatCurrencyFixed(percent, "%")})"
+                           } else {""}),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = profitLossColor
+                )
+            }
             Text( // Added to display total portfolio value
                 text = "Total Value: ${formatCurrencyFixed(totalPortfolioValue, portfolioCurrency ?: "€")}",
                 style = MaterialTheme.typography.titleMedium,
@@ -635,6 +646,11 @@ fun TransactionItem(
     val profitLossPercent = if (totalCost != 0.0) (profitLoss / totalCost) * 100 else 0.0
 
     val dateFormat = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
+    val profitLossItemColor = when {
+        profitLoss > 0 -> Color(0xFF4CAF50) // Green
+        profitLoss < 0 -> Color(0xFFF44336) // Red
+        else -> Color.LightGray
+    }
 
     Column(
         modifier = Modifier
@@ -672,15 +688,21 @@ fun TransactionItem(
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.LightGray
             )
-            Text(
-                text = "P/L: ${formatCurrencyFixed(profitLoss, transaction.currency)} (${formatCurrencyFixed(profitLossPercent, "%")})",
-                style = MaterialTheme.typography.bodySmall,
-                color = when {
-                    profitLoss > 0 -> Color(0xFF4CAF50) // Green
-                    profitLoss < 0 -> Color(0xFFF44336) // Red
-                    else -> Color.LightGray
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (profitLoss != 0.0) {
+                    Icon(
+                        imageVector = if (profitLoss > 0) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown,
+                        contentDescription = if (profitLoss > 0) "Trending Up" else "Trending Down",
+                        tint = profitLossItemColor,
+                        modifier = Modifier.size(16.dp).padding(end = 4.dp) // Adjusted size for item
+                    )
                 }
-            )
+                Text(
+                    text = "P/L: ${formatCurrencyFixed(profitLoss, transaction.currency)} (${formatCurrencyFixed(profitLossPercent, "%")})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = profitLossItemColor
+                )
+            }
         } else {
             Text(
                 text = "Market Value: Data N/A",
