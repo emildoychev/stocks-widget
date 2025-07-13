@@ -51,8 +51,10 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation("androidx.work:work-runtime-ktx:2.9.0")
-    implementation("androidx.compose.material:material-icons-extended-android:1.7.8") // Or the latest version
+    implementation("androidx.compose.material:material-icons-extended-android:1.7.8")
+    implementation("com.google.code.gson:gson:2.10.1") // Or the latest version of Gson
 
     // Room components
     implementation(libs.androidx.room.runtime)
