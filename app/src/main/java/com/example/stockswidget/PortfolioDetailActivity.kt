@@ -57,7 +57,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import androidx.compose.ui.input.pointer.pointerInput
 
 // Helper function to format currency (dynamic decimals)
 fun formatDynamicDecimal(value: Double): String {
@@ -105,7 +104,7 @@ suspend fun fetchSearchResultsFromApi(urlString: String): Map<String, Any?> {
         val url = try {
             URL(urlString)
         } catch (e: java.net.MalformedURLException) {
-            return@withContext mapOf("error" to "Invalid URL: ${'$'}{e.message}")
+            return@withContext mapOf("error" to "Invalid URL: ${e.message}")
         }
         var connection: HttpURLConnection? = null
         try {
@@ -126,7 +125,7 @@ suspend fun fetchSearchResultsFromApi(urlString: String): Map<String, Any?> {
                 reader.close()
                 mapOf("content" to response.toString())
             } else {
-                mapOf("error" to "HTTP error code: $responseCode - ${'$'}{connection.responseMessage}")
+                mapOf("error" to "HTTP error code: $responseCode - ${connection.responseMessage}")
             }
         } catch (e: Exception) {
             mapOf("error" to (e.message ?: "Unknown network error during search API call"))
@@ -163,18 +162,24 @@ class PortfolioDetailActivity : ComponentActivity() {
         setContent {
             StocksWidgetTheme {
                 var showSearchStockSheet by remember { mutableStateOf(false) }
-                var showSecondSheet by remember { mutableStateOf(false) }
+                var showAddTransactionSheet by remember { mutableStateOf(false) } // Renamed from showSecondSheet
                 val searchSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-                val secondSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true) // Consider true for full screen behavior
+                val addTransactionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+                var transactionToEdit by remember { mutableStateOf<VusaTransaction?>(null) }
+                var showDeleteTransactionConfirmDialog by remember { mutableStateOf<VusaTransaction?>(null) }
+                val snackbarHostState = remember { SnackbarHostState() }
+                val coroutineScope = rememberCoroutineScope()
+                val context = LocalContext.current
+                val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
 
                 Scaffold(
+                    snackbarHost = { SnackbarHost(snackbarHostState) },
                     topBar = {
                         TopAppBar(
                             title = { Text(portfolioTitleFromIntent) },
                             navigationIcon = {
-                                IconButton(onClick = {
-                                    finish()
-                                }) {
+                                IconButton(onClick = { finish() }) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                         contentDescription = "Back"
@@ -200,7 +205,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                     onClick = { showSearchStockSheet = true },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("Add New Stock") // Or "Search Stock"
+                                    Text("Add New Stock Transaction")
                                 }
                             }
                         }
@@ -208,7 +213,10 @@ class PortfolioDetailActivity : ComponentActivity() {
                 ) { innerPadding ->
                     PortfolioDetailScreenMainContent(
                         modifier = Modifier.padding(innerPadding),
-                        portfolioTitle = portfolioTitleFromIntent
+                        portfolioTitle = portfolioTitleFromIntent,
+                        vusaViewModel = vusaViewModel,
+                        onEditRequest = { transactionToEdit = it },
+                        onDeleteRequest = { showDeleteTransactionConfirmDialog = it }
                     )
                 }
 
@@ -216,34 +224,130 @@ class PortfolioDetailActivity : ComponentActivity() {
                     ModalBottomSheet(
                         onDismissRequest = { showSearchStockSheet = false },
                         sheetState = searchSheetState,
-                        containerColor = Color.Black
+                        containerColor = Color.Black // Assuming dark theme preference
                     ) {
                         SearchBottomSheetContent(
                             onDismiss = { showSearchStockSheet = false },
                             onSearchResultClick = {
                                 showSearchStockSheet = false
-                                showSecondSheet = true
-                                // Later: Pass search result data here
+                                showAddTransactionSheet = true
+                                // Later: Pass search result data here, if any, to AddTransactionSheetContent
                             }
                         )
                     }
                 }
 
-                if (showSecondSheet) {
+                if (showAddTransactionSheet) {
                     ModalBottomSheet(
-                        onDismissRequest = { showSecondSheet = false },
-                        sheetState = secondSheetState,
+                        onDismissRequest = { showAddTransactionSheet = false },
+                        sheetState = addTransactionSheetState,
                         modifier = Modifier.fillMaxSize(), // Makes the sheet itself full screen
-                        containerColor = Color.Black
+                        containerColor = Color.Black // Assuming dark theme preference
                     ) {
-                        // The Box ensures the content within the modal can expand
                         Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                             AddTransactionSheetContent(
-                                onDismiss = { showSecondSheet = false },
+                                onDismiss = { showAddTransactionSheet = false },
                                 vusaViewModel = vusaViewModel
+                                // Removed snackbarHostState from here, will use the Activity's
                             )
                         }
                     }
+                }
+
+                // Edit Transaction Dialog (Hoisted to Activity)
+                transactionToEdit?.let { currentTransaction ->
+                    var editAmountInput by remember { mutableStateOf(currentTransaction.amount.toString()) }
+                    var editPriceInput by remember { mutableStateOf(currentTransaction.buyPrice.toString()) }
+                    var editSelectedBuyDateMillis by remember { mutableStateOf(currentTransaction.transactionTimestamp) }
+                    var editShowDatePickerDialog by remember { mutableStateOf(false) }
+                    var editSelectedCurrency by remember { mutableStateOf(currentTransaction.currency) }
+
+                    if (editShowDatePickerDialog) {
+                        val calendar = Calendar.getInstance().apply { timeInMillis = editSelectedBuyDateMillis }
+                        DatePickerDialog(
+                            context,
+                            { _, year, month, dayOfMonth ->
+                                calendar.set(year, month, dayOfMonth)
+                                editSelectedBuyDateMillis = calendar.timeInMillis
+                                editShowDatePickerDialog = false
+                            },
+                            calendar.get(Calendar.YEAR),
+                            calendar.get(Calendar.MONTH),
+                            calendar.get(Calendar.DAY_OF_MONTH)
+                        ).show()
+                    }
+
+                    AlertDialog(
+                        onDismissRequest = { transactionToEdit = null },
+                        title = { Text("Edit Transaction") },
+                        text = {
+                            Column {
+                                OutlinedTextField(
+                                    value = editAmountInput,
+                                    onValueChange = { editAmountInput = it },
+                                    label = { Text("Amount") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                                )
+                                OutlinedTextField(
+                                    value = editPriceInput,
+                                    onValueChange = { editPriceInput = it },
+                                    label = { Text("Price") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                                )
+                                OutlinedTextField(
+                                    value = dateFormatter.format(Date(editSelectedBuyDateMillis)),
+                                    onValueChange = {},
+                                    label = { Text("Buy Date") },
+                                    readOnly = true,
+                                    trailingIcon = { Icon(Icons.Filled.DateRange, "Select Date") },
+                                    modifier = Modifier.clickable { editShowDatePickerDialog = true }
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf("€", "$", "Other").forEach { currency ->
+                                        OutlinedButton(
+                                            onClick = { editSelectedCurrency = currency },
+                                            border = BorderStroke(1.dp, if (editSelectedCurrency == currency) MaterialTheme.colorScheme.primary else Color.Gray)
+                                        ) { Text(currency) }
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                val amount = editAmountInput.toDoubleOrNull()
+                                val price = editPriceInput.toDoubleOrNull()
+                                if (amount != null && price != null) {
+                                    val updatedTransaction = currentTransaction.copy(
+                                        amount = amount,
+                                        buyPrice = price,
+                                        transactionTimestamp = editSelectedBuyDateMillis,
+                                        currency = editSelectedCurrency
+                                    )
+                                    vusaViewModel.updateTransaction(updatedTransaction)
+                                    transactionToEdit = null
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Transaction Updated!") }
+                                }
+                            }) { Text("Save Changes") }
+                        },
+                        dismissButton = { Button(onClick = { transactionToEdit = null }) { Text("Cancel") } }
+                    )
+                }
+
+                // Delete Confirmation Dialog (Hoisted to Activity)
+                showDeleteTransactionConfirmDialog?.let { transaction ->
+                    AlertDialog(
+                        onDismissRequest = { showDeleteTransactionConfirmDialog = null },
+                        title = { Text("Confirm Delete") },
+                        text = { Text("Are you sure you want to delete this transaction?") },
+                        confirmButton = {
+                            Button(onClick = {
+                                vusaViewModel.deleteTransactionById(transaction.id)
+                                showDeleteTransactionConfirmDialog = null
+                                coroutineScope.launch { snackbarHostState.showSnackbar("Transaction Deleted!") }
+                            }) { Text("Delete") }
+                        },
+                        dismissButton = { Button(onClick = { showDeleteTransactionConfirmDialog = null }) { Text("Cancel") } }
+                    )
                 }
             }
         }
@@ -251,18 +355,44 @@ class PortfolioDetailActivity : ComponentActivity() {
 }
 
 @Composable
-fun PortfolioDetailScreenMainContent(modifier: Modifier = Modifier, portfolioTitle: String) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
+fun PortfolioDetailScreenMainContent(
+    modifier: Modifier = Modifier,
+    portfolioTitle: String,
+    vusaViewModel: VusaViewModel,
+    onEditRequest: (VusaTransaction) -> Unit,
+    onDeleteRequest: (VusaTransaction) -> Unit
+) {
+    val transactions by vusaViewModel.allTransactions.collectAsState(initial = emptyList())
+
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Text(
             text = "Details for '$portfolioTitle'",
             style = MaterialTheme.typography.headlineMedium,
-            color = Color.White // Assuming black background from theme
+            color = Color.White, // Assuming black background from theme
+            modifier = Modifier.padding(bottom = 16.dp)
         )
+
+        if (transactions.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "No transactions yet. Add one using the button below.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.Gray
+                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(transactions) { transaction ->
+                    TransactionItem(
+                        transaction = transaction,
+                        currentMarketPrice = 100.0, // Fixed as per request, can be made dynamic later
+                        onEditClick = onEditRequest, // Pass the callback
+                        onDeleteClick = onDeleteRequest // Pass the callback
+                    )
+                    Divider(color = Color.DarkGray)
+                }
+            }
+        }
     }
 }
 
@@ -273,7 +403,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
-    var searchResultJson by remember { mutableStateOf("") }
+    var searchResultJson by remember { mutableStateOf("") } // Keep for now if used, or pass data differently
     var isLoading by remember { mutableStateOf(false) }
     var apiErrorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -318,7 +448,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
                 .focusRequester(focusRequester),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             shape = MaterialTheme.shapes.large,
-            textStyle = MaterialTheme.typography.bodyMedium
+            textStyle = MaterialTheme.typography.bodyMedium // Ensure consistent styling
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
@@ -326,7 +456,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
                 scope.launch {
                     isLoading = true
                     apiErrorMessage = null
-                    val result = fetchSearchResultsFromApi("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${'$'}{searchText.text}&apikey=YOUR_API_KEY") // Replace YOUR_API_KEY
+                    val result = fetchSearchResultsFromApi("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${searchText.text}&apikey=YOUR_API_KEY") // Replace YOUR_API_KEY
                     isLoading = false
                     if (result.containsKey("error")) {
                         apiErrorMessage = result["error"] as String
@@ -367,25 +497,23 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTransactionSheetContent(onDismiss: () -> Unit, vusaViewModel: VusaViewModel) {
+fun AddTransactionSheetContent(
+    onDismiss: () -> Unit,
+    vusaViewModel: VusaViewModel
+) {
     var amountInput by remember { mutableStateOf("") }
     var priceInput by remember { mutableStateOf("") }
     var selectedBuyDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     var selectedCurrency by remember { mutableStateOf("€") } // Default currency
-    var calculatedTotal by remember { mutableStateOf<String?>(null) }
+    var calculatedTotal by remember { mutableStateOf<String?>(null) } // For errors
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val localSnackbarHostState = remember { SnackbarHostState() } // Local for "Saved!"
     var isLoading by remember { mutableStateOf(false) } // For save operation
 
     val context = LocalContext.current // For DatePickerDialog
-
-    val transactions by vusaViewModel.allTransactions.collectAsState(initial = emptyList())
-    var showDeleteConfirmDialog by remember { mutableStateOf<VusaTransaction?>(null) }
-    var transactionToEdit by remember { mutableStateOf<VusaTransaction?>(null) }
-
 
     // Date Picker Dialog
     if (showDatePickerDialog) {
@@ -405,115 +533,15 @@ fun AddTransactionSheetContent(onDismiss: () -> Unit, vusaViewModel: VusaViewMod
         ).show()
     }
 
-
-    // Edit Transaction Dialog
-    transactionToEdit?.let { currentTransaction ->
-        var editAmountInput by remember { mutableStateOf(currentTransaction.amount.toString()) }
-        var editPriceInput by remember { mutableStateOf(currentTransaction.buyPrice.toString()) }
-        var editSelectedBuyDateMillis by remember { mutableStateOf(currentTransaction.transactionTimestamp) }
-        var editShowDatePickerDialog by remember { mutableStateOf(false) }
-        var editSelectedCurrency by remember { mutableStateOf(currentTransaction.currency) }
-
-        if (editShowDatePickerDialog) {
-            val calendar = Calendar.getInstance().apply { timeInMillis = editSelectedBuyDateMillis }
-            DatePickerDialog(
-                context,
-                { _, year, month, dayOfMonth ->
-                    calendar.set(year, month, dayOfMonth)
-                    editSelectedBuyDateMillis = calendar.timeInMillis
-                    editShowDatePickerDialog = false
-                },
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH),
-                calendar.get(Calendar.DAY_OF_MONTH)
-            ).show()
-        }
-
-        AlertDialog(
-            onDismissRequest = { transactionToEdit = null },
-            title = { Text("Edit Transaction") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = editAmountInput,
-                        onValueChange = { editAmountInput = it },
-                        label = { Text("Amount") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
-                    OutlinedTextField(
-                        value = editPriceInput,
-                        onValueChange = { editPriceInput = it },
-                        label = { Text("Price") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
-                    OutlinedTextField(
-                        value = dateFormatter.format(Date(editSelectedBuyDateMillis)),
-                        onValueChange = {},
-                        label = { Text("Buy Date") },
-                        readOnly = true,
-                        trailingIcon = { Icon(Icons.Filled.DateRange, "Select Date") },
-                        modifier = Modifier.clickable { editShowDatePickerDialog = true }
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("€", "$", "Other").forEach { currency ->
-                            OutlinedButton(
-                                onClick = { editSelectedCurrency = currency },
-                                border = BorderStroke(1.dp, if (editSelectedCurrency == currency) MaterialTheme.colorScheme.primary else Color.Gray)
-                            ) { Text(currency) }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    val amount = editAmountInput.toDoubleOrNull()
-                    val price = editPriceInput.toDoubleOrNull()
-                    if (amount != null && price != null) {
-                        val updatedTransaction = currentTransaction.copy(
-                            amount = amount,
-                            buyPrice = price,
-                            transactionTimestamp = editSelectedBuyDateMillis,
-                            currency = editSelectedCurrency
-                        )
-                        vusaViewModel.updateTransaction(updatedTransaction)
-                        transactionToEdit = null
-                        coroutineScope.launch { snackbarHostState.showSnackbar("Transaction Updated!") }
-                    }
-                }) { Text("Save Changes") }
-            },
-            dismissButton = { Button(onClick = { transactionToEdit = null }) { Text("Cancel") } }
-        )
-    }
-
-    // Delete Confirmation Dialog
-    showDeleteConfirmDialog?.let { transaction ->
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = null },
-            title = { Text("Confirm Delete") },
-            text = { Text("Are you sure you want to delete this transaction?") },
-            confirmButton = {
-                Button(onClick = {
-                    vusaViewModel.deleteTransactionById(transaction.id)
-                    showDeleteConfirmDialog = null
-                    coroutineScope.launch { snackbarHostState.showSnackbar("Transaction Deleted!") }
-                }) { Text("Delete") }
-            },
-            dismissButton = { Button(onClick = { showDeleteConfirmDialog = null }) { Text("Cancel") } }
-        )
-    }
-
-
-    Scaffold( // Added Scaffold for SnackbarHost
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+    Scaffold( // Added Scaffold for local SnackbarHost
+        snackbarHost = { SnackbarHost(localSnackbarHostState) },
+        containerColor = Color.Black // Ensure sheet background is consistent
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(paddingValues) // Apply padding from Scaffold
-                .padding(16.dp)
-                .pointerInput(Unit) { // To dismiss keyboard on tap outside
-                    // detectTapGestures(onTap = { focusManager.clearFocus() }) // Re-enable if needed
-                },
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -629,10 +657,10 @@ fun AddTransactionSheetContent(onDismiss: () -> Unit, vusaViewModel: VusaViewMod
 
                     if (amount == null || buyPrice == null || amount <= 0 || buyPrice <= 0) {
                         calculatedTotal = "Invalid amount or price."
+                        coroutineScope.launch { localSnackbarHostState.showSnackbar("Invalid input!") }
                     } else {
                         calculatedTotal = null // Clear previous error
                         isLoading = true
-                        // Adjust timestamp to be noon of the selected day to avoid timezone issues with just date
                         val calendar = Calendar.getInstance().apply {
                             timeInMillis = selectedBuyDateMillis
                             set(Calendar.HOUR_OF_DAY, 12)
@@ -645,13 +673,11 @@ fun AddTransactionSheetContent(onDismiss: () -> Unit, vusaViewModel: VusaViewMod
                         vusaViewModel.insertTransaction(amount, buyPrice, adjustedTimestamp, selectedCurrency)
 
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Transaction Saved!")
+                            localSnackbarHostState.showSnackbar("Transaction Saved!")
                             amountInput = ""
                             priceInput = ""
-                            // Optionally reset date and currency or keep them for next entry
-                            // selectedBuyDateMillis = System.currentTimeMillis()
-                            // selectedCurrency = "€"
                             isLoading = false
+                            onDismiss() // Optionally dismiss sheet after saving
                         }
                     }
                 },
@@ -665,21 +691,6 @@ fun AddTransactionSheetContent(onDismiss: () -> Unit, vusaViewModel: VusaViewMod
             calculatedTotal?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("VUSA Transactions", style = MaterialTheme.typography.titleMedium, color = Color.White)
-
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                items(transactions) { transaction ->
-                    TransactionItem(
-                        transaction = transaction,
-                        currentMarketPrice = 100.0, // Fixed as per request
-                        onEditClick = { transactionToEdit = it },
-                        onDeleteClick = { showDeleteConfirmDialog = it }
-                    )
-                    Divider(color = Color.Gray)
-                }
-            }
         }
     }
 }
@@ -688,7 +699,7 @@ fun AddTransactionSheetContent(onDismiss: () -> Unit, vusaViewModel: VusaViewMod
 @Composable
 fun TransactionItem(
     transaction: VusaTransaction,
-    currentMarketPrice: Double?, // Make nullable if data might be missing
+    currentMarketPrice: Double?, 
     onEditClick: (VusaTransaction) -> Unit,
     onDeleteClick: (VusaTransaction) -> Unit
 ) {
@@ -736,7 +747,7 @@ fun TransactionItem(
                 color = Color.LightGray
             )
             Text(
-                text = "P/L: ${formatCurrencyFixed(profitLoss, transaction.currency)} (${formatCurrencyFixed(profitLossPercent, "%")}%)",
+                text = "P/L: ${formatCurrencyFixed(profitLoss, transaction.currency)} (${formatCurrencyFixed(profitLossPercent, "%")})", // Changed to "%" string
                 style = MaterialTheme.typography.bodySmall,
                 color = when {
                     profitLoss > 0 -> Color(0xFF4CAF50) // Green
@@ -753,3 +764,4 @@ fun TransactionItem(
         }
     }
 }
+
