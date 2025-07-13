@@ -44,6 +44,7 @@ fun formatCurrencyFixed(amount: Double, currencySymbol: String): String {
     return when (currencySymbol) {
         "€" -> "€ $formattedNumber"
         "$" -> "$ $formattedNumber"
+        "%" -> "$formattedNumber %"
         "Other" -> formattedNumber // No symbol for "Other"
         else -> formattedNumber // Default, no symbol
     }
