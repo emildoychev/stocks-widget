@@ -311,12 +311,6 @@ fun PortfolioDetailScreenMainContent(
     }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Text(
-            text = "Details for '$portfolioTitle'",
-            style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
-            modifier = Modifier.padding(bottom = 8.dp) // Adjusted padding
-        )
 
         // Display Total Profit/Loss Summary
         if (transactions.isNotEmpty()) {
@@ -328,6 +322,12 @@ fun PortfolioDetailScreenMainContent(
                        } else {""}),
                 style = MaterialTheme.typography.titleMedium, // Or another appropriate style
                 color = profitLossColor,
+                modifier = Modifier.padding(bottom = 8.dp) // Adjusted padding
+            )
+            Text( // Added to display total portfolio value
+                text = "Total Value: ${formatCurrencyFixed(totalPortfolioValue, portfolioCurrency ?: "€")}",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White, // Or any color you prefer
                 modifier = Modifier.padding(bottom = 16.dp)
             )
         }
