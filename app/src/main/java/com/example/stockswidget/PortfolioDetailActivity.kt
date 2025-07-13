@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -34,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
@@ -75,11 +78,11 @@ class PortfolioDetailActivity : ComponentActivity() {
     }
 
     private lateinit var vusaViewModel: VusaViewModel
-    private lateinit var portfolioTitleFromIntent: String // Made accessible for AddTransactionSheetContent
+    private lateinit var portfolioTitleFromIntent: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        portfolioTitleFromIntent = intent.getStringExtra(EXTRA_PORTFOLIO_TITLE) ?: "Default Portfolio" // Ensure a default
+        portfolioTitleFromIntent = intent.getStringExtra(EXTRA_PORTFOLIO_TITLE) ?: getString(R.string.default_portfolio_title)
 
         val application = application as StocksWidgetApplication
         val vusaTransactionDao = application.vusaTransactionDao
@@ -109,7 +112,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                 IconButton(onClick = { finish() }) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Back"
+                                        contentDescription = stringResource(R.string.back_button_description)
                                     )
                                 }
                             },
@@ -132,7 +135,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                     onClick = { showSearchStockSheet = true },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("Add New Stock Transaction")
+                                    Text(stringResource(R.string.add_new_stock_transaction_button))
                                 }
                             }
                         }
@@ -140,7 +143,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                 ) { innerPadding ->
                     PortfolioDetailScreenMainContent(
                         modifier = Modifier.padding(innerPadding),
-                        portfolioTitle = portfolioTitleFromIntent, // Use the activity-level variable
+                        portfolioTitle = portfolioTitleFromIntent,
                         vusaViewModel = vusaViewModel,
                         onEditRequest = { transactionToEdit = it },
                         onDeleteRequest = { showDeleteTransactionConfirmDialog = it }
@@ -151,7 +154,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                     ModalBottomSheet(
                         onDismissRequest = { showSearchStockSheet = false },
                         sheetState = searchSheetState,
-                        containerColor = Color.Black // Assuming dark theme preference
+                        containerColor = Color.Black
                     ) {
                         SearchBottomSheetContent(
                             onDismiss = { showSearchStockSheet = false },
@@ -174,7 +177,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                             AddTransactionSheetContent(
                                 onDismiss = { showAddTransactionSheet = false },
                                 vusaViewModel = vusaViewModel,
-                                portfolioName = portfolioTitleFromIntent // Pass portfolio name
+                                portfolioName = portfolioTitleFromIntent
                             )
                         }
                     }
@@ -204,31 +207,35 @@ class PortfolioDetailActivity : ComponentActivity() {
 
                     AlertDialog(
                         onDismissRequest = { transactionToEdit = null },
-                        title = { Text("Edit Transaction") },
+                        title = { Text(stringResource(R.string.edit_transaction_dialog_title)) },
                         text = {
                             Column {
                                 OutlinedTextField(
                                     value = editAmountInput,
                                     onValueChange = { editAmountInput = formatDecimalInput(it) },
-                                    label = { Text("Amount") },
+                                    label = { Text(stringResource(R.string.amount_label)) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                                 )
                                 OutlinedTextField(
                                     value = editPriceInput,
                                     onValueChange = { editPriceInput = formatDecimalInput(it) },
-                                    label = { Text("Price") },
+                                    label = { Text(stringResource(R.string.price_label)) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                                 )
                                 OutlinedTextField(
                                     value = dateFormatter.format(Date(editSelectedBuyDateMillis)),
                                     onValueChange = {},
-                                    label = { Text("Buy Date") },
+                                    label = { Text(stringResource(R.string.buy_date_label)) },
                                     readOnly = true,
-                                    trailingIcon = { Icon(Icons.Filled.DateRange, "Select Date") },
+                                    trailingIcon = { Icon(Icons.Filled.DateRange, stringResource(R.string.select_date_description)) },
                                     modifier = Modifier.clickable { editShowDatePickerDialog = true }
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("€", "$", "Other").forEach { currency ->
+                                    listOf(
+                                        stringResource(R.string.currency_euro),
+                                        stringResource(R.string.currency_dollar),
+                                        stringResource(R.string.currency_other)
+                                    ).forEach { currency ->
                                         OutlinedButton(
                                             onClick = { editSelectedCurrency = currency },
                                             border = BorderStroke(1.dp, if (editSelectedCurrency == currency) MaterialTheme.colorScheme.primary else Color.Gray)
@@ -247,31 +254,31 @@ class PortfolioDetailActivity : ComponentActivity() {
                                         buyPrice = price,
                                         transactionTimestamp = editSelectedBuyDateMillis,
                                         currency = editSelectedCurrency,
-                                        portfolioName = currentTransaction.portfolioName // Preserve portfolioName
+                                        portfolioName = currentTransaction.portfolioName
                                     )
                                     vusaViewModel.updateTransaction(updatedTransaction)
                                     transactionToEdit = null
-                                    coroutineScope.launch { snackbarHostState.showSnackbar("Transaction Updated!") }
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Transaction Updated!") } // TODO: String resource
                                 }
-                            }) { Text("Save Changes") }
+                            }) { Text(stringResource(R.string.save_button)) }
                         },
-                        dismissButton = { Button(onClick = { transactionToEdit = null }) { Text("Cancel") } }
+                        dismissButton = { Button(onClick = { transactionToEdit = null }) { Text(stringResource(R.string.cancel_button)) } }
                     )
                 }
 
                 showDeleteTransactionConfirmDialog?.let { transaction ->
                     AlertDialog(
                         onDismissRequest = { showDeleteTransactionConfirmDialog = null },
-                        title = { Text("Confirm Delete") },
-                        text = { Text("Are you sure you want to delete this transaction?") },
+                        title = { Text(stringResource(R.string.confirm_deletion_dialog_title)) },
+                        text = { Text(stringResource(R.string.confirm_delete_transaction_message)) },
                         confirmButton = {
                             Button(onClick = {
                                 vusaViewModel.deleteTransactionById(transaction.id)
                                 showDeleteTransactionConfirmDialog = null
-                                coroutineScope.launch { snackbarHostState.showSnackbar("Transaction Deleted!") }
-                            }) { Text("Delete") }
+                                coroutineScope.launch { snackbarHostState.showSnackbar("Transaction Deleted!") } // TODO: String resource
+                            }) { Text(stringResource(R.string.delete_button)) }
                         },
-                        dismissButton = { Button(onClick = { showDeleteTransactionConfirmDialog = null }) { Text("Cancel") } }
+                        dismissButton = { Button(onClick = { showDeleteTransactionConfirmDialog = null }) { Text(stringResource(R.string.cancel_button)) } }
                     )
                 }
             }
@@ -287,19 +294,17 @@ fun PortfolioDetailScreenMainContent(
     onEditRequest: (VusaTransaction) -> Unit,
     onDeleteRequest: (VusaTransaction) -> Unit
 ) {
-    // Observe transactions for the specific portfolio
     val transactions by vusaViewModel.getTransactionsForPortfolio(portfolioTitle)
         .collectAsState(initial = emptyList())
 
-    // Calculate total profit/loss
-    val currentMarketPrice = 100.0 // Consistent with TransactionItem's currentMarketPrice
+    val currentMarketPrice = 100.0
     var totalPortfolioCost = 0.0
     var totalPortfolioValue = 0.0
     var portfolioCurrency: String? = null
 
     transactions.forEach { transaction ->
         totalPortfolioCost += transaction.amount * transaction.buyPrice
-        totalPortfolioValue += transaction.amount * currentMarketPrice // Using the fixed market price
+        totalPortfolioValue += transaction.amount * currentMarketPrice
         if (portfolioCurrency == null) {
             portfolioCurrency = transaction.currency
         }
@@ -307,26 +312,24 @@ fun PortfolioDetailScreenMainContent(
 
     val totalPortfolioProfitLoss = totalPortfolioValue - totalPortfolioCost
     val profitLossColor = when {
-        totalPortfolioProfitLoss > 0 -> Color(0xFF4CAF50) // Green
-        totalPortfolioProfitLoss < 0 -> Color(0xFFF44336) // Red
+        totalPortfolioProfitLoss > 0 -> Color(0xFF4CAF50)
+        totalPortfolioProfitLoss < 0 -> Color(0xFFF44336)
         else -> Color.LightGray
     }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-
-        // Display Total Profit/Loss Summary
         if (transactions.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
                 if (totalPortfolioProfitLoss != 0.0) {
                     Icon(
                         imageVector = if (totalPortfolioProfitLoss > 0) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown,
-                        contentDescription = if (totalPortfolioProfitLoss > 0) "Trending Up" else "Trending Down",
+                        contentDescription = if (totalPortfolioProfitLoss > 0) "Trending Up" else "Trending Down", // TODO: String resource
                         tint = profitLossColor,
                         modifier = Modifier.size(24.dp).padding(end = 4.dp)
                     )
                 }
                 Text(
-                    text = "Total P/L: ${formatCurrencyFixed(totalPortfolioProfitLoss, portfolioCurrency ?: "€")} " +
+                    text = stringResource(R.string.total_pl_prefix) + formatCurrencyFixed(totalPortfolioProfitLoss, portfolioCurrency ?: stringResource(R.string.currency_euro)) + " " +
                            (if (totalPortfolioCost != 0.0) {
                                val percent = (totalPortfolioProfitLoss / totalPortfolioCost) * 100
                                "(${formatCurrencyFixed(percent, "%")})"
@@ -335,10 +338,10 @@ fun PortfolioDetailScreenMainContent(
                     color = profitLossColor
                 )
             }
-            Text( // Added to display total portfolio value
-                text = "Total Value: ${formatCurrencyFixed(totalPortfolioValue, portfolioCurrency ?: "€")}",
+            Text(
+                text = stringResource(R.string.total_value_prefix) + formatCurrencyFixed(totalPortfolioValue, portfolioCurrency ?: stringResource(R.string.currency_euro)),
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.White, // Or any color you prefer
+                color = Color.White,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
         }
@@ -346,7 +349,7 @@ fun PortfolioDetailScreenMainContent(
         if (transactions.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    text = "No transactions yet. Add one using the button below.",
+                    text = stringResource(R.string.no_transactions_message),
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color.Gray
                 )
@@ -356,7 +359,7 @@ fun PortfolioDetailScreenMainContent(
                 items(transactions) { transaction ->
                     TransactionItem(
                         transaction = transaction,
-                        currentMarketPrice = currentMarketPrice, // Pass the same market price
+                        currentMarketPrice = currentMarketPrice,
                         onEditClick = onEditRequest,
                         onDeleteClick = onDeleteRequest
                     )
@@ -397,14 +400,14 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Search Stock",
+                stringResource(R.string.search_stocks_sheet_title),
                  style = MaterialTheme.typography.headlineSmall,
                  color = Color.White
             )
             IconButton(onClick = onDismiss) {
                 Icon(
                     imageVector = Icons.Filled.Close,
-                    contentDescription = "Close",
+                    contentDescription = stringResource(R.string.close_button),
                     tint = Color.White
                 )
             }
@@ -412,7 +415,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
         OutlinedTextField(
             value = searchText,
             onValueChange = { searchText = it },
-            label = { Text("Enter Stock Symbol (e.g., VUSA.L)") },
+            label = { Text(stringResource(R.string.search_stocks_textfield_label)) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
@@ -427,8 +430,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
                 scope.launch {
                     isLoading = true
                     apiErrorMessage = null
-                    // Replace YOUR_API_KEY with your actual Alpha Vantage API key
-                    val result = fetchSearchResultsFromApi("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${searchText.text}&apikey=YOUR_API_KEY")
+                    val result = fetchSearchResultsFromApi("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${searchText.text}&apikey=YOUR_API_KEY") // TODO: API Key and string parts
                     isLoading = false
                     if (result.containsKey("error")) {
                         apiErrorMessage = result["error"] as String
@@ -442,12 +444,12 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
             enabled = searchText.text.isNotBlank() && !isLoading,
             modifier = Modifier.fillMaxWidth()
         ) {
-            if (isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp)) else Text("Search")
+            if (isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp)) else Text(stringResource(R.string.search_button)) // TODO: String Resource "Search"
         }
 
         if (apiErrorMessage != null) {
             Text(
-                text = "Error: $apiErrorMessage",
+                text = stringResource(R.string.search_stocks_error_prefix) + apiErrorMessage,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(top = 8.dp)
             )
@@ -455,7 +457,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
 
         if (searchResultJson.isNotBlank() && !isLoading) {
             Text(
-                text = searchResultJson,
+                text = searchResultJson, // This is JSON data, not a user-facing string
                 color = Color.White,
                 modifier = Modifier.clickable { onSearchResultClick() }
             )
@@ -469,15 +471,16 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
 fun AddTransactionSheetContent(
     onDismiss: () -> Unit,
     vusaViewModel: VusaViewModel,
-    portfolioName: String // Added portfolioName parameter
+    portfolioName: String
 ) {
     var amountInput by remember { mutableStateOf("") }
     var priceInput by remember { mutableStateOf("") }
     var selectedBuyDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    var selectedCurrency by remember { mutableStateOf("€") }
-    var calculatedTotal by remember { mutableStateOf<String?>(null) }
+    val initialSelectedCurrency = stringResource(R.string.currency_euro)
+    var selectedCurrency by remember { mutableStateOf(initialSelectedCurrency) }
+    var calculatedTotal by remember { mutableStateOf<String?>(null) } // This is for error messages
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
     val localSnackbarHostState = remember { SnackbarHostState() }
@@ -519,48 +522,48 @@ fun AddTransactionSheetContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Add New Transaction to '$portfolioName'", style = MaterialTheme.typography.titleLarge, color = Color.White)
+                Text(stringResource(R.string.add_transaction_sheet_title) + " to '$portfolioName'", style = MaterialTheme.typography.titleLarge, color = Color.White) // TODO: '$portfolioName' not ideal for localization
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close Sheet", tint = Color.White)
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close_button), tint = Color.White)
                 }
             }
 
             OutlinedTextField(
                 value = amountInput,
                 onValueChange = { newText -> amountInput = formatDecimalInput(newText) },
-                label = { Text("Amount (e.g., 10.5)") },
+                label = { Text(stringResource(R.string.quantity_label)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth(),
                 trailingIcon = if (amountInput.isNotEmpty()) {
-                    { IconButton(onClick = { amountInput = "" }) { Icon(Icons.Filled.Clear, "Clear") } }
+                    { IconButton(onClick = { amountInput = "" }) { Icon(Icons.Filled.Clear, stringResource(R.string.clear_button_description)) } } // TODO: new string
                 } else null
             )
 
             OutlinedTextField(
                 value = priceInput,
                 onValueChange = { newText -> priceInput = formatDecimalInput(newText) },
-                label = { Text("Price per Unit (e.g., 75.50)") },
+                label = { Text(stringResource(R.string.buy_price_label_add_tx)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth(),
                 trailingIcon = if (priceInput.isNotEmpty()) {
-                    { IconButton(onClick = { priceInput = "" }) { Icon(Icons.Filled.Clear, "Clear") } }
+                    { IconButton(onClick = { priceInput = "" }) { Icon(Icons.Filled.Clear, stringResource(R.string.clear_button_description)) } } // TODO: new string
                 } else null
             )
 
             OutlinedTextField(
                 value = dateFormatter.format(Date(selectedBuyDateMillis)),
                 onValueChange = {},
-                label = { Text("Buy Date") },
+                label = { Text(stringResource(R.string.buy_date_label)) },
                 readOnly = true,
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showDatePickerDialog = true },
-                trailingIcon = { Icon(Icons.Filled.DateRange, "Select Date") }
+                trailingIcon = { Icon(Icons.Filled.DateRange, stringResource(R.string.select_date_description)) }
             )
 
             Row(
@@ -568,7 +571,11 @@ fun AddTransactionSheetContent(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                listOf("€", "$", "Other").forEach { currency ->
+                listOf(
+                    stringResource(R.string.currency_euro),
+                    stringResource(R.string.currency_dollar),
+                    stringResource(R.string.currency_other)
+                ).forEach { currency ->
                     OutlinedButton(
                         onClick = { selectedCurrency = currency },
                         modifier = Modifier.weight(1f),
@@ -581,7 +588,7 @@ fun AddTransactionSheetContent(
                             containerColor = if (selectedCurrency == currency) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
                         )
                     ) { Text(currency) }
-                    if (currency != "Other") Spacer(modifier = Modifier.width(8.dp))
+                    if (currency != stringResource(R.string.currency_other)) Spacer(modifier = Modifier.width(8.dp))
                 }
             }
 
@@ -592,8 +599,8 @@ fun AddTransactionSheetContent(
                     val buyPrice = priceInput.toDoubleOrNull()
 
                     if (amount == null || buyPrice == null || amount <= 0 || buyPrice <= 0) {
-                        calculatedTotal = "Invalid amount or price."
-                        coroutineScope.launch { localSnackbarHostState.showSnackbar("Invalid input!") }
+                        // calculatedTotal = "Invalid amount or price." // TODO: String resource
+                        coroutineScope.launch { localSnackbarHostState.showSnackbar("Invalid input!") } // TODO: String resource
                     } else {
                         calculatedTotal = null
                         isLoading = true
@@ -606,11 +613,10 @@ fun AddTransactionSheetContent(
                         }
                         val adjustedTimestamp = calendar.timeInMillis
 
-                        // Use portfolioName when inserting transaction
                         vusaViewModel.insertTransaction(amount, buyPrice, adjustedTimestamp, selectedCurrency, portfolioName)
 
                         coroutineScope.launch {
-                            localSnackbarHostState.showSnackbar("Transaction Saved!")
+                            localSnackbarHostState.showSnackbar("Transaction Saved!") // TODO: String resource
                             amountInput = ""
                             priceInput = ""
                             isLoading = false
@@ -622,7 +628,7 @@ fun AddTransactionSheetContent(
                 enabled = amountInput.isNotBlank() && priceInput.isNotBlank() && !isLoading,
                 shape = MaterialTheme.shapes.large
             ) {
-                if (isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White) else Text("Save Transaction")
+                if (isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White) else Text(stringResource(R.string.add_transaction_button))
             }
 
             calculatedTotal?.let {
@@ -647,8 +653,8 @@ fun TransactionItem(
 
     val dateFormat = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
     val profitLossItemColor = when {
-        profitLoss > 0 -> Color(0xFF4CAF50) // Green
-        profitLoss < 0 -> Color(0xFFF44336) // Red
+        profitLoss > 0 -> Color(0xFF4CAF50)
+        profitLoss < 0 -> Color(0xFFF44336)
         else -> Color.LightGray
     }
 
@@ -663,27 +669,29 @@ fun TransactionItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
+                // TODO: "Bought: " string and " on " string
                 text = "Bought: ${formatDynamicDecimal(transaction.amount)} @ ${formatCurrency(transaction.buyPrice, transaction.currency)} on ${dateFormat.format(Date(transaction.transactionTimestamp))}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White
             )
             Row {
                 IconButton(onClick = { onEditClick(transaction) }, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Color.LightGray)
+                    Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.edit_button_description), tint = Color.LightGray) // TODO: new string
                 }
                 IconButton(onClick = { onDeleteClick(transaction) }, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Color.LightGray)
+                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete_button_description), tint = Color.LightGray) // TODO: new string
                 }
             }
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Cost: ${formatCurrencyFixed(totalCost, transaction.currency)}",
+            text = stringResource(R.string.transaction_cost_prefix) + formatCurrencyFixed(totalCost, transaction.currency),
             style = MaterialTheme.typography.bodySmall,
             color = Color.LightGray
         )
         if (currentMarketPrice != null) {
             Text(
+                // TODO: "Mkt Val: " string and " (@ " string and ")" string
                 text = "Mkt Val: ${formatCurrencyFixed(totalValue, transaction.currency)} (@ ${formatCurrency(currentMarketPrice, transaction.currency)})",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.LightGray
@@ -692,20 +700,20 @@ fun TransactionItem(
                 if (profitLoss != 0.0) {
                     Icon(
                         imageVector = if (profitLoss > 0) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown,
-                        contentDescription = if (profitLoss > 0) "Trending Up" else "Trending Down",
+                        contentDescription = if (profitLoss > 0) "Trending Up" else "Trending Down", // TODO: String resource
                         tint = profitLossItemColor,
-                        modifier = Modifier.size(16.dp).padding(end = 4.dp) // Adjusted size for item
+                        modifier = Modifier.size(16.dp).padding(end = 4.dp)
                     )
                 }
                 Text(
-                    text = "P/L: ${formatCurrencyFixed(profitLoss, transaction.currency)} (${formatCurrencyFixed(profitLossPercent, "%")})",
+                    text = stringResource(R.string.transaction_pl_prefix) + formatCurrencyFixed(profitLoss, transaction.currency) + " (${formatCurrencyFixed(profitLossPercent, "%")})",
                     style = MaterialTheme.typography.bodySmall,
                     color = profitLossItemColor
                 )
             }
         } else {
             Text(
-                text = "Market Value: Data N/A",
+                text = "Market Value: Data N/A", // TODO: String resource
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.LightGray
             )

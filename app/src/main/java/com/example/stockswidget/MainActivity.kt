@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
@@ -31,12 +32,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        // ViewModel is not directly used in MainActivity anymore for transactions
-        // val application = application as StocksWidgetApplication
-        // val vusaTransactionDao = application.vusaTransactionDao
-        // val viewModelFactory = VusaViewModelFactory(vusaTransactionDao)
-        // val vusaViewModel = ViewModelProvider(this, viewModelFactory)[VusaViewModel::class.java]
 
         setContent {
             StocksWidgetTheme {
@@ -59,7 +54,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
                         TopAppBar(
-                            title = { Text("My Portfolios") }, // Updated title
+                            title = { Text(stringResource(R.string.main_activity_title)) },
                             colors = TopAppBarDefaults.topAppBarColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 titleContentColor = Color.White
@@ -71,7 +66,7 @@ class MainActivity : ComponentActivity() {
                             onClick = { showAddPortfolioDialog = true },
                             containerColor = MaterialTheme.colorScheme.secondary
                         ) {
-                            Text("  Add Portfolio  ", color = Color.White) // Added padding for better look
+                            Text(stringResource(R.string.add_portfolio_button), color = Color.White, modifier = Modifier.padding(horizontal = 8.dp))
                         }
                     },
                     floatingActionButtonPosition = FabPosition.Center
@@ -95,12 +90,12 @@ class MainActivity : ComponentActivity() {
                                 showAddPortfolioDialog = false
                                 newPortfolioTitle = ""
                             },
-                            title = { Text("Add New Portfolio") },
+                            title = { Text(stringResource(R.string.add_new_portfolio_dialog_title)) },
                             text = {
                                 OutlinedTextField(
                                     value = newPortfolioTitle,
                                     onValueChange = { newPortfolioTitle = it },
-                                    label = { Text("Portfolio Title") },
+                                    label = { Text(stringResource(R.string.portfolio_title_label)) },
                                     singleLine = true,
                                     shape = MaterialTheme.shapes.large,
                                     modifier = Modifier.fillMaxWidth(),
@@ -128,7 +123,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     enabled = newPortfolioTitle.isNotBlank()
                                 ) {
-                                    Text("Save & Open")
+                                    Text(stringResource(R.string.save_and_open_button))
                                 }
                             },
                             dismissButton = {
@@ -136,7 +131,7 @@ class MainActivity : ComponentActivity() {
                                     showAddPortfolioDialog = false
                                     newPortfolioTitle = ""
                                 }) {
-                                    Text("Cancel")
+                                    Text(stringResource(R.string.cancel_button))
                                 }
                             }
                         )
@@ -148,8 +143,8 @@ class MainActivity : ComponentActivity() {
                                 showDeletePortfolioConfirmDialog = false
                                 portfolioTitleToDelete = null
                             },
-                            title = { Text("Confirm Deletion") },
-                            text = { Text("Are you sure you want to delete the portfolio \"$portfolioTitleToDelete\" and all its transactions? This action cannot be undone.") }, // Updated warning
+                            title = { Text(stringResource(R.string.confirm_deletion_dialog_title)) },
+                            text = { Text(stringResource(R.string.confirm_delete_portfolio_message, portfolioTitleToDelete ?: "")) },
                             confirmButton = {
                                 Button(
                                     onClick = {
@@ -167,7 +162,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                                 ) {
-                                    Text("Delete")
+                                    Text(stringResource(R.string.delete_button))
                                 }
                             },
                             dismissButton = {
@@ -175,7 +170,7 @@ class MainActivity : ComponentActivity() {
                                     showDeletePortfolioConfirmDialog = false
                                     portfolioTitleToDelete = null
                                 }) {
-                                    Text("Cancel")
+                                    Text(stringResource(R.string.cancel_button))
                                 }
                             }
                         )
@@ -199,7 +194,7 @@ fun PortfolioListScreen(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                "No portfolios yet. Click 'Add Portfolio' to create one.",
+                stringResource(R.string.no_portfolios_message),
                 style = MaterialTheme.typography.headlineSmall,
                 color = Color.Gray
             )
@@ -251,7 +246,7 @@ fun PortfolioListItem(
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
-                    contentDescription = "Delete $portfolioTitle",
+                    contentDescription = stringResource(R.string.delete_portfolio_content_description, portfolioTitle),
                     tint = MaterialTheme.colorScheme.error
                 )
             }

@@ -1,4 +1,79 @@
 <resources>
     <string name="app_name">StocksWidget</string>
     <string name="stock_widget_description">Portfolio gains and losses</string>
+
+    <string name="default_portfolio_title">Default Portfolio</string>
+    <string name="back_button_description">Back</string>
+    <string name="add_new_stock_transaction_button">Add New Stock Transaction</string>
+    <string name="edit_transaction_dialog_title">Edit Transaction</string>
+    <string name="amount_label">Amount</string>
+    <string name="price_label">Price</string>
+    <string name="buy_date_label">Buy Date</string>
+    <string name="select_date_description">Select Date</string>
+    <string name="save_button">Save</string>
+    <string name="cancel_button">Cancel</string>
+    <string name="confirm_deletion_dialog_title">Confirm Deletion</string>
+    <string name="confirm_delete_transaction_message">Are you sure you want to delete this transaction? This action cannot be undone.</string>
+    <string name="delete_button">Delete</string>
+
+    <string name="transaction_date_prefix">Date: </string>
+    <string name="transaction_cost_prefix">Cost: </string>
+    <string name="transaction_current_price_prefix">Current Price: </string>
+    <string name="transaction_pl_prefix">P/L: </string>
+    <string name="total_pl_prefix">Total P/L: </string>
+    <string name="total_value_prefix">Total Value: </string>
+    <string name="no_transactions_message">No transactions yet. Click \'Add New Stock Transaction\' below to get started.</string>
+    <string name="loading_transactions_message">Loading transactions...</string>
+    <string name="error_fetching_transactions_prefix">Error fetching transactions: </string>
+
+    <string name="search_stocks_sheet_title">Search Stocks</string>
+    <string name="search_stocks_textfield_label">Type to search...</string>
+    <string name="search_stocks_no_results">No results found.</string>
+    <string name="search_stocks_fetching_data">Fetching data...</string>
+    <string name="search_stocks_error_prefix">Error: </string>
+
+    <string name="add_transaction_sheet_title">Add Transaction</string>
+    <string name="stock_symbol_label">Stock Symbol (e.g. AAPL, VUSA.L)</string>
+    <string name="quantity_label">Quantity</string>
+    <string name="buy_price_label_add_tx">Buy Price</string>
+    <string name="select_currency_label">Select Currency</string>
+    <string name="add_transaction_button">Add Transaction</string>
+    <string name="close_button">Close</string>
+    <string name="search_button">Search</string>
+
+    <string name="currency_euro">€</string>
+    <string name="currency_dollar">$</string>
+    <string name="currency_other">Other</string>
+
+    <!-- Strings from PortfolioDetailActivity -->
+    <string name="edit_button_description">Edit Transaction</string>
+    <string name="delete_button_description">Delete Transaction</string>
+    <string name="clear_button_description">Clear input</string>
+    <string name="dialog_edit_transaction_title">Edit Transaction</string> <!-- Same as edit_transaction_dialog_title, but for consistency -->
+    <string name="dialog_confirm_delete_transaction_title">Confirm Deletion</string> <!-- Same as confirm_deletion_dialog_title -->
+    <string name="dialog_confirm_delete_transaction_message">Are you sure you want to delete this transaction? This action cannot be undone.</string> <!-- Same as confirm_delete_transaction_message -->
+    <string name="market_value_na">Market Value: Data N/A</string>
+    <string name="trending_up_description">Trending Up</string>
+    <string name="trending_down_description">Trending Down</string>
+    <string name="bought_transaction_details">Bought: %1$s @ %2$s on %3$s</string>
+    <string name="market_value_details">Mkt Val: %1$s (@ %2$s)</string>
+    <string name="add_transaction_to_portfolio_title">Add Transaction to \'%1$s\'</string>
+    <string name="search_button_text">Search</string>
+    <string name="api_key_error_placeholder">YOUR_API_KEY</string> <!-- It's better to store API keys securely, not in strings.xml -->
+    <string name="alpha_vantage_query_template">https://www.alphavantage.co/query?function=GLOBAL_QUOTE&amp;symbol=%1$s&amp;apikey=%2$s</string>
+    <string name="snackbar_transaction_updated">Transaction Updated!</string>
+    <string name="snackbar_transaction_deleted">Transaction Deleted!</string>
+    <string name="snackbar_invalid_input">Invalid input!</string>
+    <string name="snackbar_transaction_saved">Transaction Saved!</string>
+    <string name="error_invalid_amount_price">Invalid amount or price.</string>
+
+    <!-- Strings from MainActivity -->
+    <string name="main_activity_title">My Portfolios</string>
+    <string name="add_portfolio_button">Add Portfolio</string>
+    <string name="add_new_portfolio_dialog_title">Add New Portfolio</string>
+    <string name="portfolio_title_label">Portfolio Title</string>
+    <string name="save_and_open_button">Save &amp; Open</string>
+    <string name="confirm_delete_portfolio_message">Are you sure you want to delete the portfolio "%1$s" and all its transactions? This action cannot be undone.</string>
+    <string name="no_portfolios_message">No portfolios yet. Click \'Add Portfolio\' to create one.</string>
+    <string name="delete_portfolio_content_description">Delete %1$s</string>
 </resources>
