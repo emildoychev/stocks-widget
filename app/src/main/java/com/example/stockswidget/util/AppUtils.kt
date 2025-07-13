@@ -85,3 +85,20 @@ suspend fun fetchSearchResultsFromApi(urlString: String): Map<String, Any?> {
         }
     }
 }
+
+// Helper function to format decimal input
+fun formatDecimalInput(text: String, maxDecimalPlaces: Int = 4): String {
+    val filtered = text.foldIndexed("") { _, acc, char ->
+        if (char.isDigit()) acc + char
+        else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
+        else acc
+    }
+    val parts = filtered.split('.', limit = 2)
+    val integerPart = parts[0]
+    val fractionalPart = if (parts.size > 1) parts[1].take(maxDecimalPlaces) else null
+    return when {
+        fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
+        integerPart.isEmpty() && filtered.contains('.') -> "0."
+        else -> integerPart
+    }
+}

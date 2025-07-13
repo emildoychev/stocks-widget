@@ -207,13 +207,13 @@ class PortfolioDetailActivity : ComponentActivity() {
                             Column {
                                 OutlinedTextField(
                                     value = editAmountInput,
-                                    onValueChange = { editAmountInput = it },
+                                    onValueChange = { editAmountInput = formatDecimalInput(it) },
                                     label = { Text("Amount") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                                 )
                                 OutlinedTextField(
                                     value = editPriceInput,
-                                    onValueChange = { editPriceInput = it },
+                                    onValueChange = { editPriceInput = formatDecimalInput(it) },
                                     label = { Text("Price") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                                 )
@@ -481,21 +481,7 @@ fun AddTransactionSheetContent(
 
             OutlinedTextField(
                 value = amountInput,
-                onValueChange = { newText ->
-                    val filtered = newText.foldIndexed("") { _, acc, char ->
-                        if (char.isDigit()) acc + char
-                        else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
-                        else acc
-                    }
-                    val parts = filtered.split('.', limit = 2)
-                    val integerPart = parts[0]
-                    val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
-                    amountInput = when {
-                        fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
-                        integerPart.isEmpty() && filtered.contains('.') -> "0."
-                        else -> integerPart
-                    }
-                },
+                onValueChange = { newText -> amountInput = formatDecimalInput(newText) },
                 label = { Text("Amount (e.g., 10.5)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
@@ -508,21 +494,7 @@ fun AddTransactionSheetContent(
 
             OutlinedTextField(
                 value = priceInput,
-                onValueChange = { newText ->
-                    val filtered = newText.foldIndexed("") { _, acc, char ->
-                        if (char.isDigit()) acc + char
-                        else if ((char == '.' || char == ',') && !acc.contains('.')) acc + '.'
-                        else acc
-                    }
-                    val parts = filtered.split('.', limit = 2)
-                    val integerPart = parts[0]
-                    val fractionalPart = if (parts.size > 1) parts[1].take(4) else null
-                    priceInput = when {
-                        fractionalPart != null -> if (integerPart.isEmpty()) "0.$fractionalPart" else "$integerPart.$fractionalPart"
-                        integerPart.isEmpty() && filtered.contains('.') -> "0."
-                        else -> integerPart
-                    }
-                },
+                onValueChange = { newText -> priceInput = formatDecimalInput(newText) },
                 label = { Text("Price per Unit (e.g., 75.50)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
