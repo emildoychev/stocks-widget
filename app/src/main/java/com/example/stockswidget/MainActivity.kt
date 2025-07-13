@@ -71,44 +71,6 @@ data class VusaData(
     val lastUpdateTime: String = "Loading..."
 )
 
-fun formatDynamicDecimal(value: Double): String {
-    if (value.isNaN() || value.isInfinite()) {
-        return value.toString() // Or a placeholder like "N/A"
-    }
-    // Check if it's a whole number
-    if (value % 1.0 == 0.0) {
-        return value.toLong().toString()
-    }
-    // For numbers with decimals, use BigDecimal to strip trailing zeros accurately
-    return BigDecimal(value.toString()).stripTrailingZeros().toPlainString()
-}
-
-// Helper function to format currency based on the symbol (dynamic decimals)
-fun formatCurrency(amount: Double, currencySymbol: String): String {
-    val formattedNumber = formatDynamicDecimal(amount)
-    return when (currencySymbol) {
-        "€" -> "€ $formattedNumber"
-        "$" -> "$ $formattedNumber"
-        "Other" -> formattedNumber // No symbol for "Other"
-        else -> formattedNumber // Default, no symbol
-    }
-}
-
-// Helper function to format currency with fixed two decimal places
-fun formatCurrencyFixed(amount: Double, currencySymbol: String): String {
-    val numberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
-        minimumFractionDigits = 2
-        maximumFractionDigits = 2
-    }
-    val formattedNumber = numberFormat.format(amount)
-    return when (currencySymbol) {
-        "€" -> "€ $formattedNumber"
-        "$" -> "$ $formattedNumber"
-        "Other" -> formattedNumber // No symbol for "Other"
-        else -> formattedNumber // Default, no symbol
-    }
-}
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -271,7 +233,7 @@ class MainActivity : ComponentActivity() {
                                 portfolioTitleToDelete = null
                             },
                             title = { Text("Confirm Deletion") },
-                            text = { Text("Are you sure you want to delete the portfolio \"$portfolioTitleToDelete\"?" ) },
+                            text = { Text("Are you sure you want to delete the portfolio \"$portfolioTitleToDelete\"?") },
                             confirmButton = {
                                 Button(
                                     onClick = {
