@@ -1,10 +1,12 @@
+
 package com.example.stockswidget
 
-import android.annotation.SuppressLint
+import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast // Added for error handling in AddTransactionSheetContent
+import android.util.Log
+import android.widget.DatePicker
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
@@ -15,12 +17,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,289 +30,176 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.stockswidget.data.AppDatabase // Added import
+import androidx.lifecycle.ViewModelProvider
 import com.example.stockswidget.data.VusaTransaction
+// import com.example.stockswidget.data.VusaTransactionDao // Not directly used here
 import com.example.stockswidget.data.VusaViewModel
 import com.example.stockswidget.data.VusaViewModelFactory
 import com.example.stockswidget.ui.theme.StocksWidgetTheme
-import com.google.gson.Gson
-import com.google.gson.JsonSyntaxException
-import com.google.gson.reflect.TypeToken
+import com.example.stockswidget.util.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.IOException
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.math.BigDecimal
 import java.net.HttpURLConnection
 import java.net.URL
-import java.text.DecimalFormat
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
-
-fun formatDecimalInput(input: String): String {
-    if (input.isEmpty()) return ""
-    val regex = Regex("""^\d*\.?\d*$""") // Allows numbers like "123", "123.", "123.45"
-    if (!regex.matches(input)) return input.dropLast(1) // Remove last char if not matching
-    return input
-}
-
-fun formatCurrency(value: Double, currencySymbol: String): String {
-    val formatter = DecimalFormat("0.00")
-    return "$currencySymbol${formatter.format(value)}"
-}
-
-fun formatCurrencyFixed(value: Double, currencySymbol: String): String {
-    val formatter = DecimalFormat("#,##0.00")
-    return if (currencySymbol == "%") {
-        "${formatter.format(value)}"
-    } else {
-        "$currencySymbol${formatter.format(value)}"
-    }
-}
-
-suspend fun fetchSearchResultsFromApi(urlString: String): Map<String, Any> {
-    return withContext(Dispatchers.IO) {
-        try {
-            val url = URL(urlString)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connect()
-
-            if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                val inputStream = connection.inputStream
-                val response = inputStream.bufferedReader().use { it.readText() }
-                mapOf("content" to response)
-            } else {
-                mapOf("error" to "API request failed with code: ${connection.responseCode}")
-            }
-        } catch (e: IOException) {
-            mapOf("error" to "Network error: ${e.localizedMessage}")
-        }
-    }
-}
-
-data class StockQuote(
-    val symbol: String,
-    val open: String,
-    val high: String,
-    val low: String,
-    val price: String,
-    val volume: String,
-    val latestTradingDay: String,
-    val previousClose: String,
-    val change: String,
-    val changePercent: String
-)
-
-fun parseStockQuote(jsonString: String): StockQuote? {
-    val gson = Gson()
-    return try {
-        val typeToken = object : TypeToken<Map<String, Map<String, String>>>() {}
-        val parsedJson: Map<String, Map<String, String>> = gson.fromJson(jsonString, typeToken.type)
-        val globalQuoteObject = parsedJson["Global Quote"]
-
-        globalQuoteObject?.let {
-            StockQuote(
-                symbol = it["01. symbol"] ?: "N/A",
-                open = it["02. open"] ?: "N/A",
-                high = it["03. high"] ?: "N/A",
-                low = it["04. low"] ?: "N/A",
-                price = it["05. price"] ?: "N/A",
-                volume = it["06. volume"] ?: "N/A",
-                latestTradingDay = it["07. latest trading day"] ?: "N/A",
-                previousClose = it["08. previous close"] ?: "N/A",
-                change = it["09. change"] ?: "N/A",
-                changePercent = it["10. change percent"] ?: "N/A"
-            )
-        }
-    } catch (e: JsonSyntaxException) {
-        e.printStackTrace()
-        null
-    }
-}
-
-@Composable
-fun TransactionItem(
-    transaction: VusaTransaction,
-    currentMarketPrice: Double,
-    onEditClick: (VusaTransaction) -> Unit,
-    onDeleteClick: (VusaTransaction) -> Unit
-) {
-    val profitLoss = (currentMarketPrice - transaction.buyPrice) * transaction.amount
-    val profitLossColor = if (profitLoss >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-    val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(8.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "${transaction.amount} shares @ ${formatCurrencyFixed(transaction.buyPrice, transaction.currency)}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Date: ${dateFormatter.format(Date(transaction.transactionTimestamp))}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "P/L: ${formatCurrencyFixed(profitLoss, transaction.currency)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = profitLossColor
-                )
-            }
-            Row {
-                IconButton(onClick = { onEditClick(transaction) }) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Edit Transaction", tint = MaterialTheme.colorScheme.primary)
-                }
-                IconButton(onClick = { onDeleteClick(transaction) }) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Delete Transaction", tint = MaterialTheme.colorScheme.error)
-                }
-            }
-        }
-    }
-}
-
+@OptIn(ExperimentalMaterial3Api::class)
 class PortfolioDetailActivity : ComponentActivity() {
 
     companion object {
-        private const val EXTRA_PORTFOLIO_TITLE = "com.example.stockswidget.PORTFOLIO_TITLE"
+        private const val EXTRA_PORTFOLIO_TITLE = "extra_portfolio_title"
 
         fun newIntent(context: Context, portfolioTitle: String): Intent {
-            val intent = Intent(context, PortfolioDetailActivity::class.java)
-            intent.putExtra(EXTRA_PORTFOLIO_TITLE, portfolioTitle)
-            return intent
+            return Intent(context, PortfolioDetailActivity::class.java).apply {
+                putExtra(EXTRA_PORTFOLIO_TITLE, portfolioTitle)
+            }
         }
     }
 
-    @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
-    @OptIn(ExperimentalMaterial3Api::class)
+    private lateinit var vusaViewModel: VusaViewModel
+    private lateinit var portfolioTitleFromIntent: String // Made accessible for AddTransactionSheetContent
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val portfolioName = intent.getStringExtra(EXTRA_PORTFOLIO_TITLE) ?: "Unknown Portfolio"
+        portfolioTitleFromIntent = intent.getStringExtra(EXTRA_PORTFOLIO_TITLE) ?: "Default Portfolio" // Ensure a default
+
+        val application = application as StocksWidgetApplication
+        val vusaTransactionDao = application.vusaTransactionDao
+        val viewModelFactory = VusaViewModelFactory(vusaTransactionDao)
+        vusaViewModel = ViewModelProvider(this, viewModelFactory)[VusaViewModel::class.java]
 
         setContent {
             StocksWidgetTheme {
-                // Get DAO instance from your database
-                val database = AppDatabase.getDatabase(applicationContext)
-                val vusaTransactionDao = database.vusaTransactionDao()
-
-                // Correctly initialize the ViewModel factory with the DAO
-                val vusaViewModel: VusaViewModel = viewModel(factory = VusaViewModelFactory(vusaTransactionDao))
-                
+                var showSearchStockSheet by remember { mutableStateOf(false) }
                 var showAddTransactionSheet by remember { mutableStateOf(false) }
-                var showSearchBottomSheet by remember { mutableStateOf(false) }
-                val snackbarHostState = remember { SnackbarHostState() }
-                val coroutineScope = rememberCoroutineScope()
+                val searchSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                val addTransactionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
                 var transactionToEdit by remember { mutableStateOf<VusaTransaction?>(null) }
                 var showDeleteTransactionConfirmDialog by remember { mutableStateOf<VusaTransaction?>(null) }
-
-                var editAmountInput by remember { mutableStateOf("") }
-                var editPriceInput by remember { mutableStateOf("") }
-                var editSelectedBuyDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
-                var editShowDatePickerDialog by remember { mutableStateOf(false) }
-                var editSelectedCurrency by remember { mutableStateOf("€") }
-                val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
-
-                LaunchedEffect(transactionToEdit) {
-                    transactionToEdit?.let {
-                        editAmountInput = it.amount.toString()
-                        editPriceInput = it.buyPrice.toString()
-                        editSelectedBuyDateMillis = it.transactionTimestamp
-                        editSelectedCurrency = it.currency
-                    }
-                }
-
-                if (editShowDatePickerDialog) {
-                    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = editSelectedBuyDateMillis)
-                    DatePickerDialog(
-                        onDismissRequest = { editShowDatePickerDialog = false },
-                        confirmButton = {
-                            Button(onClick = {
-                                datePickerState.selectedDateMillis?.let { millis ->
-                                    editSelectedBuyDateMillis = millis
-                                }
-                                editShowDatePickerDialog = false
-                            }) { Text("OK") }
-                        },
-                        dismissButton = { Button(onClick = { editShowDatePickerDialog = false }) { Text("Cancel") } }
-                    ) {
-                        DatePicker(state = datePickerState)
-                    }
-                }
+                val snackbarHostState = remember { SnackbarHostState() }
+                val coroutineScope = rememberCoroutineScope()
+                val context = LocalContext.current
+                val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
 
                 Scaffold(
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                     topBar = {
                         TopAppBar(
-                            title = { Text(portfolioName) },
+                            title = { Text(portfolioTitleFromIntent) },
                             navigationIcon = {
                                 IconButton(onClick = { finish() }) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back"
+                                    )
                                 }
                             },
-                            actions = {
-                                IconButton(onClick = { showSearchBottomSheet = true }) {
-                                    Icon(Icons.Filled.Search, contentDescription = "Search Stock")
-                                }
-                            }
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                titleContentColor = Color.White,
+                                navigationIconContentColor = Color.White
+                            )
                         )
                     },
-                    floatingActionButton = {
-                        FloatingActionButton(onClick = { showAddTransactionSheet = true }) {
-                            Icon(Icons.Filled.Add, contentDescription = "Add Transaction")
+                    bottomBar = {
+                        BottomAppBar {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Button(
+                                    onClick = { showSearchStockSheet = true },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Add New Stock Transaction")
+                                }
+                            }
                         }
                     }
-                ) { paddingValues -> // This \'paddingValues\' is provided by Scaffold
+                ) { innerPadding ->
                     PortfolioDetailScreenMainContent(
-                        modifier = Modifier.padding(paddingValues), // Apply the paddingValues here
-                        portfolioTitle = portfolioName,
+                        modifier = Modifier.padding(innerPadding),
+                        portfolioTitle = portfolioTitleFromIntent, // Use the activity-level variable
                         vusaViewModel = vusaViewModel,
-                        onEditRequest = { transaction -> transactionToEdit = transaction },
-                        onDeleteRequest = { transaction -> showDeleteTransactionConfirmDialog = transaction }
+                        onEditRequest = { transactionToEdit = it },
+                        onDeleteRequest = { showDeleteTransactionConfirmDialog = it }
                     )
                 }
 
-                if (showAddTransactionSheet) {
-                    ModalBottomSheet(onDismissRequest = { showAddTransactionSheet = false }) {
-                        AddTransactionSheetContent(
-                            onDismiss = { showAddTransactionSheet = false },
-                            vusaViewModel = vusaViewModel,
-                            portfolioName = portfolioName
+                if (showSearchStockSheet) {
+                    ModalBottomSheet(
+                        onDismissRequest = { showSearchStockSheet = false },
+                        sheetState = searchSheetState,
+                        containerColor = Color.Black // Assuming dark theme preference
+                    ) {
+                        SearchBottomSheetContent(
+                            onDismiss = { showSearchStockSheet = false },
+                            onSearchResultClick = {
+                                showSearchStockSheet = false
+                                showAddTransactionSheet = true
+                            }
                         )
                     }
                 }
 
-                if (showSearchBottomSheet) {
-                    ModalBottomSheet(onDismissRequest = { showSearchBottomSheet = false }) {
-                        SearchBottomSheetContent(
-                            onDismiss = { showSearchBottomSheet = false },
-                            onSearchResultClick = {
-                                showSearchBottomSheet = false
-                            }
-                        )
+                if (showAddTransactionSheet) {
+                    ModalBottomSheet(
+                        onDismissRequest = { showAddTransactionSheet = false },
+                        sheetState = addTransactionSheetState,
+                        modifier = Modifier.fillMaxSize(),
+                        containerColor = Color.Black
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                            AddTransactionSheetContent(
+                                onDismiss = { showAddTransactionSheet = false },
+                                vusaViewModel = vusaViewModel,
+                                portfolioName = portfolioTitleFromIntent // Pass portfolio name
+                            )
+                        }
                     }
                 }
 
                 transactionToEdit?.let { currentTransaction ->
+                    var editAmountInput by remember { mutableStateOf(currentTransaction.amount.toString()) }
+                    var editPriceInput by remember { mutableStateOf(currentTransaction.buyPrice.toString()) }
+                    var editSelectedBuyDateMillis by remember { mutableStateOf(currentTransaction.transactionTimestamp) }
+                    var editShowDatePickerDialog by remember { mutableStateOf(false) }
+                    var editSelectedCurrency by remember { mutableStateOf(currentTransaction.currency) }
+
+                    if (editShowDatePickerDialog) {
+                        val calendar = Calendar.getInstance().apply { timeInMillis = editSelectedBuyDateMillis }
+                        DatePickerDialog(
+                            context,
+                            { _, year, month, dayOfMonth ->
+                                calendar.set(year, month, dayOfMonth)
+                                editSelectedBuyDateMillis = calendar.timeInMillis
+                                editShowDatePickerDialog = false
+                            },
+                            calendar.get(Calendar.YEAR),
+                            calendar.get(Calendar.MONTH),
+                            calendar.get(Calendar.DAY_OF_MONTH)
+                        ).show()
+                    }
+
                     AlertDialog(
                         onDismissRequest = { transactionToEdit = null },
                         title = { Text("Edit Transaction") },
@@ -357,7 +245,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                         buyPrice = price,
                                         transactionTimestamp = editSelectedBuyDateMillis,
                                         currency = editSelectedCurrency,
-                                        portfolioName = currentTransaction.portfolioName
+                                        portfolioName = currentTransaction.portfolioName // Preserve portfolioName
                                     )
                                     vusaViewModel.updateTransaction(updatedTransaction)
                                     transactionToEdit = null
@@ -391,23 +279,25 @@ class PortfolioDetailActivity : ComponentActivity() {
 
 @Composable
 fun PortfolioDetailScreenMainContent(
-    modifier: Modifier = Modifier, // Ensure this parameter exists
+    modifier: Modifier = Modifier,
     portfolioTitle: String,
     vusaViewModel: VusaViewModel,
     onEditRequest: (VusaTransaction) -> Unit,
     onDeleteRequest: (VusaTransaction) -> Unit
 ) {
+    // Observe transactions for the specific portfolio
     val transactions by vusaViewModel.getTransactionsForPortfolio(portfolioTitle)
         .collectAsState(initial = emptyList())
 
-    val currentMarketPrice = 100.0
+    // Calculate total profit/loss
+    val currentMarketPrice = 100.0 // Consistent with TransactionItem's currentMarketPrice
     var totalPortfolioCost = 0.0
     var totalPortfolioValue = 0.0
     var portfolioCurrency: String? = null
 
     transactions.forEach { transaction ->
         totalPortfolioCost += transaction.amount * transaction.buyPrice
-        totalPortfolioValue += transaction.amount * currentMarketPrice
+        totalPortfolioValue += transaction.amount * currentMarketPrice // Using the fixed market price
         if (portfolioCurrency == null) {
             portfolioCurrency = transaction.currency
         }
@@ -415,28 +305,29 @@ fun PortfolioDetailScreenMainContent(
 
     val totalPortfolioProfitLoss = totalPortfolioValue - totalPortfolioCost
     val profitLossColor = when {
-        totalPortfolioProfitLoss > 0 -> Color(0xFF4CAF50)
-        totalPortfolioProfitLoss < 0 -> Color(0xFFF44336)
+        totalPortfolioProfitLoss > 0 -> Color(0xFF4CAF50) // Green
+        totalPortfolioProfitLoss < 0 -> Color(0xFFF44336) // Red
         else -> Color.LightGray
     }
 
-    // Use the modifier on the root layout element within this composable
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Text(
+            text = "Details for '$portfolioTitle'",
+            style = MaterialTheme.typography.headlineMedium,
+            color = Color.White,
+            modifier = Modifier.padding(bottom = 8.dp) // Adjusted padding
+        )
+
+        // Display Total Profit/Loss Summary
         if (transactions.isNotEmpty()) {
             Text(
                 text = "Total P/L: ${formatCurrencyFixed(totalPortfolioProfitLoss, portfolioCurrency ?: "€")} " +
                        (if (totalPortfolioCost != 0.0) {
                            val percent = (totalPortfolioProfitLoss / totalPortfolioCost) * 100
-                           "(${formatCurrencyFixed(percent, "%")}%)"
+                           "(${formatCurrencyFixed(percent, "%")})"
                        } else {""}),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium, // Or another appropriate style
                 color = profitLossColor,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            Text(
-                text = "Total Value: ${formatCurrencyFixed(totalPortfolioValue, portfolioCurrency ?: "€")}",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
         }
@@ -454,11 +345,11 @@ fun PortfolioDetailScreenMainContent(
                 items(transactions) { transaction ->
                     TransactionItem(
                         transaction = transaction,
-                        currentMarketPrice = currentMarketPrice,
+                        currentMarketPrice = currentMarketPrice, // Pass the same market price
                         onEditClick = onEditRequest,
                         onDeleteClick = onDeleteRequest
                     )
-                    HorizontalDivider(color = Color.DarkGray)
+                    Divider(color = Color.DarkGray)
                 }
             }
         }
@@ -533,7 +424,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
                         searchResultJson = ""
                     } else {
                         searchResultJson = result["content"] as String
-                        onSearchResultClick() 
+                        onSearchResultClick()
                     }
                 }
             },
@@ -553,7 +444,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
 
         if (searchResultJson.isNotBlank() && !isLoading) {
             Text(
-                text = searchResultJson, 
+                text = searchResultJson,
                 color = Color.White,
                 modifier = Modifier.clickable { onSearchResultClick() }
             )
@@ -561,120 +452,241 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
     }
 }
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionSheetContent(
     onDismiss: () -> Unit,
     vusaViewModel: VusaViewModel,
-    portfolioName: String 
+    portfolioName: String // Added portfolioName parameter
 ) {
     var amountInput by remember { mutableStateOf("") }
     var priceInput by remember { mutableStateOf("") }
-    var selectedBuyDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var selectedBuyDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
-    var selectedCurrency by remember { mutableStateOf("€") } 
-    val context = LocalContext.current
-    // val snackbarHostState = remember { SnackbarHostState() } // Not used locally
+    val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    var selectedCurrency by remember { mutableStateOf("€") }
+    var calculatedTotal by remember { mutableStateOf<String?>(null) }
+    val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
-    val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val localSnackbarHostState = remember { SnackbarHostState() }
+    var isLoading by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
 
     if (showDatePickerDialog) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedBuyDateMillis)
+        val calendar = Calendar.getInstance().apply {
+            timeInMillis = selectedBuyDateMillis
+        }
         DatePickerDialog(
-            onDismissRequest = { showDatePickerDialog = false },
-            confirmButton = {
-                Button(onClick = {
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        selectedBuyDateMillis = millis
-                    }
-                    showDatePickerDialog = false
-                }) { Text("OK") }
-                            },
-            dismissButton = { Button(onClick = { showDatePickerDialog = false }) { Text("Cancel") } }
+            context,
+            { _: DatePicker, year: Int, month: Int, dayOfMonth: Int ->
+                calendar.set(year, month, dayOfMonth)
+                selectedBuyDateMillis = calendar.timeInMillis
+                showDatePickerDialog = false
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(localSnackbarHostState) },
+        containerColor = Color.Black
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(paddingValues)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            DatePicker(state = datePickerState)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Add New Transaction to '$portfolioName'", style = MaterialTheme.typography.titleLarge, color = Color.White)
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close Sheet", tint = Color.White)
+                }
+            }
+
+            OutlinedTextField(
+                value = amountInput,
+                onValueChange = { newText -> amountInput = formatDecimalInput(newText) },
+                label = { Text("Amount (e.g., 10.5)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth(),
+                trailingIcon = if (amountInput.isNotEmpty()) {
+                    { IconButton(onClick = { amountInput = "" }) { Icon(Icons.Filled.Clear, "Clear") } }
+                } else null
+            )
+
+            OutlinedTextField(
+                value = priceInput,
+                onValueChange = { newText -> priceInput = formatDecimalInput(newText) },
+                label = { Text("Price per Unit (e.g., 75.50)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth(),
+                trailingIcon = if (priceInput.isNotEmpty()) {
+                    { IconButton(onClick = { priceInput = "" }) { Icon(Icons.Filled.Clear, "Clear") } }
+                } else null
+            )
+
+            OutlinedTextField(
+                value = dateFormatter.format(Date(selectedBuyDateMillis)),
+                onValueChange = {},
+                label = { Text("Buy Date") },
+                readOnly = true,
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showDatePickerDialog = true },
+                trailingIcon = { Icon(Icons.Filled.DateRange, "Select Date") }
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf("€", "$", "Other").forEach { currency ->
+                    OutlinedButton(
+                        onClick = { selectedCurrency = currency },
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.large,
+                        border = BorderStroke(
+                            1.dp,
+                            if (selectedCurrency == currency) MaterialTheme.colorScheme.primary else Color.Gray
+                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (selectedCurrency == currency) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
+                        )
+                    ) { Text(currency) }
+                    if (currency != "Other") Spacer(modifier = Modifier.width(8.dp))
+                }
+            }
+
+            Button(
+                onClick = {
+                    focusManager.clearFocus()
+                    val amount = amountInput.toDoubleOrNull()
+                    val buyPrice = priceInput.toDoubleOrNull()
+
+                    if (amount == null || buyPrice == null || amount <= 0 || buyPrice <= 0) {
+                        calculatedTotal = "Invalid amount or price."
+                        coroutineScope.launch { localSnackbarHostState.showSnackbar("Invalid input!") }
+                    } else {
+                        calculatedTotal = null
+                        isLoading = true
+                        val calendar = Calendar.getInstance().apply {
+                            timeInMillis = selectedBuyDateMillis
+                            set(Calendar.HOUR_OF_DAY, 12)
+                            set(Calendar.MINUTE, 0)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        val adjustedTimestamp = calendar.timeInMillis
+
+                        // Use portfolioName when inserting transaction
+                        vusaViewModel.insertTransaction(amount, buyPrice, adjustedTimestamp, selectedCurrency, portfolioName)
+
+                        coroutineScope.launch {
+                            localSnackbarHostState.showSnackbar("Transaction Saved!")
+                            amountInput = ""
+                            priceInput = ""
+                            isLoading = false
+                            onDismiss()
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = amountInput.isNotBlank() && priceInput.isNotBlank() && !isLoading,
+                shape = MaterialTheme.shapes.large
+            ) {
+                if (isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White) else Text("Save Transaction")
+            }
+
+            calculatedTotal?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
+}
+
+
+@Composable
+fun TransactionItem(
+    transaction: VusaTransaction,
+    currentMarketPrice: Double?,
+    onEditClick: (VusaTransaction) -> Unit,
+    onDeleteClick: (VusaTransaction) -> Unit
+) {
+    val totalValue = currentMarketPrice?.let { transaction.amount * it } ?: 0.0
+    val totalCost = transaction.amount * transaction.buyPrice
+    val profitLoss = totalValue - totalCost
+    val profitLossPercent = if (totalCost != 0.0) (profitLoss / totalCost) * 100 else 0.0
+
+    val dateFormat = remember { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
 
     Column(
         modifier = Modifier
-            .padding(16.dp)
-            .fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
     ) {
-        Text("Add New Transaction", style = MaterialTheme.typography.headlineSmall, color = Color.White)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = amountInput,
-            onValueChange = { amountInput = formatDecimalInput(it) },
-            label = { Text("Amount") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = priceInput,
-            onValueChange = { priceInput = formatDecimalInput(it) },
-            label = { Text("Buy Price") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = dateFormatter.format(Date(selectedBuyDateMillis)),
-            onValueChange = { /* Read-only */ },
-            label = { Text("Buy Date") },
-            readOnly = true,
-            trailingIcon = { Icon(Icons.Filled.DateRange, "Select Date") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { showDatePickerDialog = true }
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            listOf("€", "$", "Other").forEach { currency -> 
-                OutlinedButton(
-                    onClick = { selectedCurrency = currency },
-                    border = BorderStroke(
-                        1.dp,
-                        if (selectedCurrency == currency) MaterialTheme.colorScheme.primary else Color.Gray
-                    )
-                ) {
-                    Text(currency)
+            Text(
+                text = "Bought: ${formatDynamicDecimal(transaction.amount)} @ ${formatCurrency(transaction.buyPrice, transaction.currency)} on ${dateFormat.format(Date(transaction.transactionTimestamp))}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White
+            )
+            Row {
+                IconButton(onClick = { onEditClick(transaction) }, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Color.LightGray)
+                }
+                IconButton(onClick = { onDeleteClick(transaction) }, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Color.LightGray)
                 }
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = {
-                val amount = amountInput.toDoubleOrNull()
-                val price = priceInput.toDoubleOrNull()
-
-                if (amount != null && price != null && amount > 0 && price > 0) {
-                    vusaViewModel.insertTransaction(
-                        amount = amount,
-                        buyPrice = price,
-                        transactionTimestamp = selectedBuyDateMillis,
-                        currency = selectedCurrency,
-                        portfolioName = portfolioName
-                    )
-                    Toast.makeText(context, "Transaction Added", Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                } else {
-                    Toast.makeText(context, "Invalid input. Please check amount and price.", Toast.LENGTH_LONG).show()
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Cost: ${formatCurrencyFixed(totalCost, transaction.currency)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.LightGray
+        )
+        if (currentMarketPrice != null) {
+            Text(
+                text = "Mkt Val: ${formatCurrencyFixed(totalValue, transaction.currency)} (@ ${formatCurrency(currentMarketPrice, transaction.currency)})",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.LightGray
+            )
+            Text(
+                text = "P/L: ${formatCurrencyFixed(profitLoss, transaction.currency)} (${formatCurrencyFixed(profitLossPercent, "%")})",
+                style = MaterialTheme.typography.bodySmall,
+                color = when {
+                    profitLoss > 0 -> Color(0xFF4CAF50) // Green
+                    profitLoss < 0 -> Color(0xFFF44336) // Red
+                    else -> Color.LightGray
                 }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Add Transaction")
+            )
+        } else {
+            Text(
+                text = "Market Value: Data N/A",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.LightGray
+            )
         }
     }
 }
