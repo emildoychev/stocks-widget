@@ -289,13 +289,48 @@ fun PortfolioDetailScreenMainContent(
     val transactions by vusaViewModel.getTransactionsForPortfolio(portfolioTitle)
         .collectAsState(initial = emptyList())
 
+    // Calculate total profit/loss
+    val currentMarketPrice = 100.0 // Consistent with TransactionItem's currentMarketPrice
+    var totalPortfolioCost = 0.0
+    var totalPortfolioValue = 0.0
+    var portfolioCurrency: String? = null
+
+    transactions.forEach { transaction ->
+        totalPortfolioCost += transaction.amount * transaction.buyPrice
+        totalPortfolioValue += transaction.amount * currentMarketPrice // Using the fixed market price
+        if (portfolioCurrency == null) {
+            portfolioCurrency = transaction.currency
+        }
+    }
+
+    val totalPortfolioProfitLoss = totalPortfolioValue - totalPortfolioCost
+    val profitLossColor = when {
+        totalPortfolioProfitLoss > 0 -> Color(0xFF4CAF50) // Green
+        totalPortfolioProfitLoss < 0 -> Color(0xFFF44336) // Red
+        else -> Color.LightGray
+    }
+
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Text(
             text = "Details for '$portfolioTitle'",
             style = MaterialTheme.typography.headlineMedium,
             color = Color.White,
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(bottom = 8.dp) // Adjusted padding
         )
+
+        // Display Total Profit/Loss Summary
+        if (transactions.isNotEmpty()) {
+            Text(
+                text = "Total P/L: ${formatCurrencyFixed(totalPortfolioProfitLoss, portfolioCurrency ?: "€")} " +
+                       (if (totalPortfolioCost != 0.0) {
+                           val percent = (totalPortfolioProfitLoss / totalPortfolioCost) * 100
+                           "(${formatCurrencyFixed(percent, "%")})"
+                       } else {""}),
+                style = MaterialTheme.typography.titleMedium, // Or another appropriate style
+                color = profitLossColor,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
 
         if (transactions.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -310,7 +345,7 @@ fun PortfolioDetailScreenMainContent(
                 items(transactions) { transaction ->
                     TransactionItem(
                         transaction = transaction,
-                        currentMarketPrice = 100.0, // Fixed as per request, can be made dynamic later
+                        currentMarketPrice = currentMarketPrice, // Pass the same market price
                         onEditClick = onEditRequest,
                         onDeleteClick = onDeleteRequest
                     )
