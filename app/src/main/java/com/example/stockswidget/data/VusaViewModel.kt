@@ -4,27 +4,45 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class VusaViewModel(private val dao: VusaTransactionDao) : ViewModel() {
 
-    // Flow to observe all transactions from the database
-    val allTransactions: Flow<List<VusaTransaction>> = dao.getAllTransactions()
+    // Function to get transactions for a specific portfolio
+    // Consider making this a StateFlow if you want to observe it like `allTransactions` was.
+    fun getTransactionsForPortfolio(portfolioName: String): Flow<List<VusaTransaction>> {
+        return dao.getTransactionsForPortfolio(portfolioName)
+    }
 
-    // Function to insert a new transaction
-    fun insertTransaction(amount: Double, buyPrice: Double, transactionTimestamp: Long, currency: String) { // Added currency
+    // If you need a version that can be collected as StateFlow in Composables:
+    // This is more advanced and requires a portfolioName to be passed or managed within the ViewModel.
+    // For now, PortfolioDetailActivity will collect the Flow directly.
+
+    // Function to insert a new transaction, now requires portfolioName
+    fun insertTransaction(
+        amount: Double,
+        buyPrice: Double,
+        transactionTimestamp: Long,
+        currency: String,
+        portfolioName: String // Added portfolioName
+    ) {
         viewModelScope.launch {
             val transaction = VusaTransaction(
                 amount = amount,
                 buyPrice = buyPrice,
-                transactionTimestamp = transactionTimestamp, // Use the provided timestamp
-                currency = currency // Store the currency
+                transactionTimestamp = transactionTimestamp,
+                currency = currency,
+                portfolioName = portfolioName // Store the portfolioName
             )
             dao.insertTransaction(transaction)
         }
     }
 
     // Function to update an existing transaction
+    // The VusaTransaction object already contains the portfolioName
     fun updateTransaction(transaction: VusaTransaction) {
         viewModelScope.launch {
             dao.updateTransaction(transaction)

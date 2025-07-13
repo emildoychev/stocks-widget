@@ -38,7 +38,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import com.example.stockswidget.data.VusaTransaction
-import com.example.stockswidget.data.VusaTransactionDao
+// import com.example.stockswidget.data.VusaTransactionDao // Not directly used here
 import com.example.stockswidget.data.VusaViewModel
 import com.example.stockswidget.data.VusaViewModelFactory
 import com.example.stockswidget.ui.theme.StocksWidgetTheme
@@ -149,10 +149,11 @@ class PortfolioDetailActivity : ComponentActivity() {
     }
 
     private lateinit var vusaViewModel: VusaViewModel
+    private lateinit var portfolioTitleFromIntent: String // Made accessible for AddTransactionSheetContent
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val portfolioTitleFromIntent = intent.getStringExtra(EXTRA_PORTFOLIO_TITLE) ?: "Portfolio Details"
+        portfolioTitleFromIntent = intent.getStringExtra(EXTRA_PORTFOLIO_TITLE) ?: "Default Portfolio" // Ensure a default
 
         val application = application as StocksWidgetApplication
         val vusaTransactionDao = application.vusaTransactionDao
@@ -162,7 +163,7 @@ class PortfolioDetailActivity : ComponentActivity() {
         setContent {
             StocksWidgetTheme {
                 var showSearchStockSheet by remember { mutableStateOf(false) }
-                var showAddTransactionSheet by remember { mutableStateOf(false) } // Renamed from showSecondSheet
+                var showAddTransactionSheet by remember { mutableStateOf(false) }
                 val searchSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
                 val addTransactionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -213,7 +214,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                 ) { innerPadding ->
                     PortfolioDetailScreenMainContent(
                         modifier = Modifier.padding(innerPadding),
-                        portfolioTitle = portfolioTitleFromIntent,
+                        portfolioTitle = portfolioTitleFromIntent, // Use the activity-level variable
                         vusaViewModel = vusaViewModel,
                         onEditRequest = { transactionToEdit = it },
                         onDeleteRequest = { showDeleteTransactionConfirmDialog = it }
@@ -231,7 +232,6 @@ class PortfolioDetailActivity : ComponentActivity() {
                             onSearchResultClick = {
                                 showSearchStockSheet = false
                                 showAddTransactionSheet = true
-                                // Later: Pass search result data here, if any, to AddTransactionSheetContent
                             }
                         )
                     }
@@ -241,20 +241,19 @@ class PortfolioDetailActivity : ComponentActivity() {
                     ModalBottomSheet(
                         onDismissRequest = { showAddTransactionSheet = false },
                         sheetState = addTransactionSheetState,
-                        modifier = Modifier.fillMaxSize(), // Makes the sheet itself full screen
-                        containerColor = Color.Black // Assuming dark theme preference
+                        modifier = Modifier.fillMaxSize(),
+                        containerColor = Color.Black
                     ) {
                         Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                             AddTransactionSheetContent(
                                 onDismiss = { showAddTransactionSheet = false },
-                                vusaViewModel = vusaViewModel
-                                // Removed snackbarHostState from here, will use the Activity's
+                                vusaViewModel = vusaViewModel,
+                                portfolioName = portfolioTitleFromIntent // Pass portfolio name
                             )
                         }
                     }
                 }
 
-                // Edit Transaction Dialog (Hoisted to Activity)
                 transactionToEdit?.let { currentTransaction ->
                     var editAmountInput by remember { mutableStateOf(currentTransaction.amount.toString()) }
                     var editPriceInput by remember { mutableStateOf(currentTransaction.buyPrice.toString()) }
@@ -321,7 +320,8 @@ class PortfolioDetailActivity : ComponentActivity() {
                                         amount = amount,
                                         buyPrice = price,
                                         transactionTimestamp = editSelectedBuyDateMillis,
-                                        currency = editSelectedCurrency
+                                        currency = editSelectedCurrency,
+                                        portfolioName = currentTransaction.portfolioName // Preserve portfolioName
                                     )
                                     vusaViewModel.updateTransaction(updatedTransaction)
                                     transactionToEdit = null
@@ -333,7 +333,6 @@ class PortfolioDetailActivity : ComponentActivity() {
                     )
                 }
 
-                // Delete Confirmation Dialog (Hoisted to Activity)
                 showDeleteTransactionConfirmDialog?.let { transaction ->
                     AlertDialog(
                         onDismissRequest = { showDeleteTransactionConfirmDialog = null },
@@ -362,13 +361,15 @@ fun PortfolioDetailScreenMainContent(
     onEditRequest: (VusaTransaction) -> Unit,
     onDeleteRequest: (VusaTransaction) -> Unit
 ) {
-    val transactions by vusaViewModel.allTransactions.collectAsState(initial = emptyList())
+    // Observe transactions for the specific portfolio
+    val transactions by vusaViewModel.getTransactionsForPortfolio(portfolioTitle)
+        .collectAsState(initial = emptyList())
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Text(
             text = "Details for '$portfolioTitle'",
             style = MaterialTheme.typography.headlineMedium,
-            color = Color.White, // Assuming black background from theme
+            color = Color.White,
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
@@ -386,8 +387,8 @@ fun PortfolioDetailScreenMainContent(
                     TransactionItem(
                         transaction = transaction,
                         currentMarketPrice = 100.0, // Fixed as per request, can be made dynamic later
-                        onEditClick = onEditRequest, // Pass the callback
-                        onDeleteClick = onDeleteRequest // Pass the callback
+                        onEditClick = onEditRequest,
+                        onDeleteClick = onDeleteRequest
                     )
                     Divider(color = Color.DarkGray)
                 }
@@ -403,7 +404,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
-    var searchResultJson by remember { mutableStateOf("") } // Keep for now if used, or pass data differently
+    var searchResultJson by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var apiErrorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -448,7 +449,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
                 .focusRequester(focusRequester),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             shape = MaterialTheme.shapes.large,
-            textStyle = MaterialTheme.typography.bodyMedium // Ensure consistent styling
+            textStyle = MaterialTheme.typography.bodyMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
@@ -456,15 +457,15 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
                 scope.launch {
                     isLoading = true
                     apiErrorMessage = null
-                    val result = fetchSearchResultsFromApi("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${searchText.text}&apikey=YOUR_API_KEY") // Replace YOUR_API_KEY
+                    // Replace YOUR_API_KEY with your actual Alpha Vantage API key
+                    val result = fetchSearchResultsFromApi("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${searchText.text}&apikey=YOUR_API_KEY")
                     isLoading = false
                     if (result.containsKey("error")) {
                         apiErrorMessage = result["error"] as String
                         searchResultJson = ""
                     } else {
                         searchResultJson = result["content"] as String
-                        // Potentially parse and display better, or directly enable AddTransactionSheet
-                        onSearchResultClick() // Call this to proceed to the next sheet
+                        onSearchResultClick()
                     }
                 }
             },
@@ -482,13 +483,11 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
             )
         }
 
-        // Displaying the raw JSON result for now, can be parsed and formatted
-        // Making the result text clickable to proceed
         if (searchResultJson.isNotBlank() && !isLoading) {
             Text(
                 text = searchResultJson,
                 color = Color.White,
-                modifier = Modifier.clickable { onSearchResultClick() } // This was the original trigger
+                modifier = Modifier.clickable { onSearchResultClick() }
             )
         }
     }
@@ -499,23 +498,23 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> U
 @Composable
 fun AddTransactionSheetContent(
     onDismiss: () -> Unit,
-    vusaViewModel: VusaViewModel
+    vusaViewModel: VusaViewModel,
+    portfolioName: String // Added portfolioName parameter
 ) {
     var amountInput by remember { mutableStateOf("") }
     var priceInput by remember { mutableStateOf("") }
     var selectedBuyDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    var selectedCurrency by remember { mutableStateOf("€") } // Default currency
-    var calculatedTotal by remember { mutableStateOf<String?>(null) } // For errors
+    var selectedCurrency by remember { mutableStateOf("€") }
+    var calculatedTotal by remember { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
-    val localSnackbarHostState = remember { SnackbarHostState() } // Local for "Saved!"
-    var isLoading by remember { mutableStateOf(false) } // For save operation
+    val localSnackbarHostState = remember { SnackbarHostState() }
+    var isLoading by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current // For DatePickerDialog
+    val context = LocalContext.current
 
-    // Date Picker Dialog
     if (showDatePickerDialog) {
         val calendar = Calendar.getInstance().apply {
             timeInMillis = selectedBuyDateMillis
@@ -533,14 +532,14 @@ fun AddTransactionSheetContent(
         ).show()
     }
 
-    Scaffold( // Added Scaffold for local SnackbarHost
+    Scaffold(
         snackbarHost = { SnackbarHost(localSnackbarHostState) },
-        containerColor = Color.Black // Ensure sheet background is consistent
+        containerColor = Color.Black
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(paddingValues) // Apply padding from Scaffold
+                .padding(paddingValues)
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -550,13 +549,12 @@ fun AddTransactionSheetContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Add New VUSA Transaction", style = MaterialTheme.typography.titleLarge, color = Color.White)
+                Text("Add New Transaction to '$portfolioName'", style = MaterialTheme.typography.titleLarge, color = Color.White)
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Filled.Close, contentDescription = "Close Sheet", tint = Color.White)
                 }
             }
 
-            // Amount Input
             OutlinedTextField(
                 value = amountInput,
                 onValueChange = { newText ->
@@ -584,7 +582,6 @@ fun AddTransactionSheetContent(
                 } else null
             )
 
-            // Price Input
             OutlinedTextField(
                 value = priceInput,
                 onValueChange = { newText ->
@@ -612,10 +609,9 @@ fun AddTransactionSheetContent(
                 } else null
             )
 
-            // Date Selection
             OutlinedTextField(
                 value = dateFormatter.format(Date(selectedBuyDateMillis)),
-                onValueChange = { /* Read-only, handled by click */ },
+                onValueChange = {},
                 label = { Text("Buy Date") },
                 readOnly = true,
                 shape = MaterialTheme.shapes.large,
@@ -625,7 +621,6 @@ fun AddTransactionSheetContent(
                 trailingIcon = { Icon(Icons.Filled.DateRange, "Select Date") }
             )
 
-            // Currency Selection
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -648,7 +643,6 @@ fun AddTransactionSheetContent(
                 }
             }
 
-            // Save Button
             Button(
                 onClick = {
                     focusManager.clearFocus()
@@ -659,7 +653,7 @@ fun AddTransactionSheetContent(
                         calculatedTotal = "Invalid amount or price."
                         coroutineScope.launch { localSnackbarHostState.showSnackbar("Invalid input!") }
                     } else {
-                        calculatedTotal = null // Clear previous error
+                        calculatedTotal = null
                         isLoading = true
                         val calendar = Calendar.getInstance().apply {
                             timeInMillis = selectedBuyDateMillis
@@ -670,14 +664,15 @@ fun AddTransactionSheetContent(
                         }
                         val adjustedTimestamp = calendar.timeInMillis
 
-                        vusaViewModel.insertTransaction(amount, buyPrice, adjustedTimestamp, selectedCurrency)
+                        // Use portfolioName when inserting transaction
+                        vusaViewModel.insertTransaction(amount, buyPrice, adjustedTimestamp, selectedCurrency, portfolioName)
 
                         coroutineScope.launch {
                             localSnackbarHostState.showSnackbar("Transaction Saved!")
                             amountInput = ""
                             priceInput = ""
                             isLoading = false
-                            onDismiss() // Optionally dismiss sheet after saving
+                            onDismiss()
                         }
                     }
                 },
@@ -699,7 +694,7 @@ fun AddTransactionSheetContent(
 @Composable
 fun TransactionItem(
     transaction: VusaTransaction,
-    currentMarketPrice: Double?, 
+    currentMarketPrice: Double?,
     onEditClick: (VusaTransaction) -> Unit,
     onDeleteClick: (VusaTransaction) -> Unit
 ) {
@@ -747,7 +742,7 @@ fun TransactionItem(
                 color = Color.LightGray
             )
             Text(
-                text = "P/L: ${formatCurrencyFixed(profitLoss, transaction.currency)} (${formatCurrencyFixed(profitLossPercent, "%")})", // Changed to "%" string
+                text = "P/L: ${formatCurrencyFixed(profitLoss, transaction.currency)} (${formatCurrencyFixed(profitLossPercent, "%")})",
                 style = MaterialTheme.typography.bodySmall,
                 color = when {
                     profitLoss > 0 -> Color(0xFF4CAF50) // Green
