@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -101,8 +102,10 @@ class PortfolioDetailActivity : ComponentActivity() {
 
         setContent {
             StocksWidgetTheme {
-                var showBottomSheet by remember { mutableStateOf(false) }
-                val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                var showSearchStockSheet by remember { mutableStateOf(false) }
+                var showSecondSheet by remember { mutableStateOf(false) }
+                val searchSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                val secondSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
                 Scaffold(
                     topBar = {
@@ -133,7 +136,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Button(
-                                    onClick = { showBottomSheet = true },
+                                    onClick = { showSearchStockSheet = true },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text("Add New Transaction")
@@ -148,14 +151,37 @@ class PortfolioDetailActivity : ComponentActivity() {
                     )
                 }
 
-                if (showBottomSheet) {
+                if (showSearchStockSheet) {
                     ModalBottomSheet(
-                        onDismissRequest = { showBottomSheet = false },
-                        sheetState = sheetState,
+                        onDismissRequest = { showSearchStockSheet = false },
+                        sheetState = searchSheetState,
+                        containerColor = Color.Black
                     ) {
                         SearchBottomSheetContent(
-                            onDismiss = { showBottomSheet = false }
+                            onDismiss = { showSearchStockSheet = false },
+                            onSearchResultClick = {
+                                showSearchStockSheet = false
+                                showSecondSheet = true
+                            }
                         )
+                    }
+                }
+
+                if (showSecondSheet) {
+                    ModalBottomSheet(
+                        onDismissRequest = { showSecondSheet = false },
+                        sheetState = secondSheetState,
+                        containerColor = Color.Black
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize() // Changed from fillMaxWidth and removed fixed height
+                                .statusBarsPadding() // Added to account for system status bar
+                                .padding(16.dp), // Retained padding
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("This is the second modal!", color = Color.White)
+                        }
                     }
                 }
             }
@@ -181,7 +207,7 @@ fun PortfolioDetailScreenMainContent(modifier: Modifier = Modifier, portfolioTit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchBottomSheetContent(onDismiss: () -> Unit) {
+fun SearchBottomSheetContent(onDismiss: () -> Unit, onSearchResultClick: () -> Unit) {
     var searchText by remember { mutableStateOf(TextFieldValue("")) }
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -231,7 +257,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit) {
                     scope.launch {
                         val apiUrl = "https://ceres-searchsuggest.debijenkorf.nl/suggest?keyword=${newSearchText.text}&locale=nl_NL&api-version=3.70"
                         try {
-                            val response = fetchSearchResultsFromApi(apiUrl) // Corrected API call
+                            val response = fetchSearchResultsFromApi(apiUrl)
 
                             if (response.containsKey("error")) {
                                 apiErrorMessage = response["error"]?.toString() ?: "Unknown tool error"
@@ -290,6 +316,7 @@ fun SearchBottomSheetContent(onDismiss: () -> Unit) {
                     .weight(1f) // Allow text to take available space and scroll
                     .verticalScroll(rememberScrollState())
                     .fillMaxWidth()
+                    .clickable { onSearchResultClick() } // Make the result text clickable
             )
         }
     }
