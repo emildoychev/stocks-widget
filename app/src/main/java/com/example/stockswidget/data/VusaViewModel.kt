@@ -12,37 +12,22 @@ import kotlinx.coroutines.launch
 class VusaViewModel(private val dao: VusaTransactionDao) : ViewModel() {
 
     // Function to get transactions for a specific portfolio
-    // Consider making this a StateFlow if you want to observe it like `allTransactions` was.
     fun getTransactionsForPortfolio(portfolioName: String): Flow<List<VusaTransaction>> {
         return dao.getTransactionsForPortfolio(portfolioName)
     }
 
-    // If you need a version that can be collected as StateFlow in Composables:
-    // This is more advanced and requires a portfolioName to be passed or managed within the ViewModel.
-    // For now, PortfolioDetailActivity will collect the Flow directly.
-
-    // Function to insert a new transaction, now requires portfolioName
-    fun insertTransaction(
-        amount: Double,
-        buyPrice: Double,
-        transactionTimestamp: Long,
-        currency: String,
-        portfolioName: String // Added portfolioName
-    ) {
+    /**
+     * Inserts a VusaTransaction into the database.
+     * The VusaTransaction object should be fully formed before calling this method.
+     */
+    fun insertTransaction(transaction: VusaTransaction) { // Changed signature
         viewModelScope.launch {
-            val transaction = VusaTransaction(
-                amount = amount,
-                buyPrice = buyPrice,
-                transactionTimestamp = transactionTimestamp,
-                currency = currency,
-                portfolioName = portfolioName // Store the portfolioName
-            )
+            // The transaction object is now passed directly
             dao.insertTransaction(transaction)
         }
     }
 
     // Function to update an existing transaction
-    // The VusaTransaction object already contains the portfolioName
     fun updateTransaction(transaction: VusaTransaction) {
         viewModelScope.launch {
             dao.updateTransaction(transaction)
