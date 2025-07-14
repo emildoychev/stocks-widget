@@ -272,6 +272,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                     onValueChange = { /* Read-only, changed by dialog */ },
                                     label = { Text(stringResource(R.string.buy_date_label)) },
                                     readOnly = true,
+                                    modifier = Modifier.fillMaxWidth().clickable { editShowDatePickerDialog = true }, // Added clickable
                                     trailingIcon = {
                                         IconButton(onClick = { editShowDatePickerDialog = true }) {
                                             Icon(Icons.Filled.DateRange, stringResource(R.string.select_date_description))
@@ -554,17 +555,22 @@ class PortfolioDetailActivity : ComponentActivity() {
 
         if (showDatePickerDialog) {
             val calendar = Calendar.getInstance().apply { timeInMillis = selectedBuyDateMillis }
-            DatePickerDialog(
+            val datePickerDialog = DatePickerDialog(
                 context,
                 { _: DatePicker, year: Int, month: Int, dayOfMonth: Int ->
                     calendar.set(year, month, dayOfMonth)
                     selectedBuyDateMillis = calendar.timeInMillis
-                    showDatePickerDialog = false
+                    showDatePickerDialog = false // This handles date selection
                 },
                 calendar.get(Calendar.YEAR),
                 calendar.get(Calendar.MONTH),
                 calendar.get(Calendar.DAY_OF_MONTH)
-            ).show()
+            )
+            // Crucial addition: Set an OnDismissListener
+            datePickerDialog.setOnDismissListener {
+                showDatePickerDialog = false // This handles dismissal without selection
+            }
+            datePickerDialog.show()
         }
 
         Column(
@@ -617,18 +623,36 @@ class PortfolioDetailActivity : ComponentActivity() {
             )
             Spacer(Modifier.height(8.dp))
 
-            OutlinedTextField(
-                value = dateFormatter.format(Date(selectedBuyDateMillis)),
-                onValueChange = { /* Read-only */ },
-                label = { Text(stringResource(R.string.buy_date_label)) },
-                readOnly = true,
-                modifier = Modifier.fillMaxWidth(),
-                trailingIcon = {
-                    IconButton(onClick = { showDatePickerDialog = true }) {
-                        Icon(Icons.Filled.DateRange, stringResource(R.string.select_date_description))
-                    }
-                }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = { showDatePickerDialog = true }) // This Box handles the click
+            ) {
+                OutlinedTextField(
+                    value = dateFormatter.format(Date(selectedBuyDateMillis)),
+                    onValueChange = { /* No-op as it's disabled */ },
+                    label = { Text(stringResource(R.string.buy_date_label)) },
+                    enabled = false,   // Crucial change: Disable the TextField
+                    readOnly = true,   // Keep for semantic clarity
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        Icon( // Just the Icon, as the Box handles the click
+                            imageVector = Icons.Filled.DateRange,
+                            contentDescription = stringResource(R.string.select_date_description)
+                        )
+                    },
+                    colors = TextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledContainerColor = Color.Transparent, // Important for OutlinedTextField
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledIndicatorColor = MaterialTheme.colorScheme.outline, // Border color
+                        cursorColor = Color.Transparent // No cursor when disabled
+                    ),
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() } // To prevent ripple on text field
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
 
             // Currency Dropdown
