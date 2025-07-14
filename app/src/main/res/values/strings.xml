@@ -76,4 +76,8 @@
     <string name="confirm_delete_portfolio_message">Are you sure you want to delete the portfolio "%1$s" and all its transactions? This action cannot be undone.</string>
     <string name="no_portfolios_message">No portfolios yet. Click \'Add Portfolio\' to create one.</string>
     <string name="delete_portfolio_content_description">Delete %1$s</string>
+
+    <!-- New strings for search functionality -->
+    <string name="search_stocks_na_placeholder">N/A</string>
+    <string name="search_stocks_enter_more_chars">Keep typing to search...</string>
 </resources>

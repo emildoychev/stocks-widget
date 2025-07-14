@@ -236,7 +236,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                             calendar.get(Calendar.YEAR),
                             calendar.get(Calendar.MONTH),
                             calendar.get(Calendar.DAY_OF_MONTH)
-                        ).show() // Added .show()
+                        ).show()
                     }
 
                     AlertDialog(
@@ -244,47 +244,93 @@ class PortfolioDetailActivity : ComponentActivity() {
                         title = { Text(stringResource(R.string.edit_transaction_dialog_title)) },
                         text = {
                             Column {
+                                // Amount
                                 OutlinedTextField(
                                     value = editAmountInputTfv,
-                                    onValueChange = { editAmountInputTfv = formatDecimalInputTfv(editAmountInputTfv, it.text) },
+                                    onValueChange = { editAmountInputTfv = formatDecimalInputTfv(editAmountInputTfv, it.text, 4) },
                                     label = { Text(stringResource(R.string.amount_label)) },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true
                                 )
+                                Spacer(Modifier.height(8.dp))
+                                // Price
                                 OutlinedTextField(
                                     value = editPriceInputTfv,
-                                    onValueChange = { editPriceInputTfv = formatDecimalInputTfv(editPriceInputTfv, it.text) },
+                                    onValueChange = { editPriceInputTfv = formatDecimalInputTfv(editPriceInputTfv, it.text, 4) },
                                     label = { Text(stringResource(R.string.price_label)) },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true
                                 )
+                                Spacer(Modifier.height(8.dp))
+                                // Buy Date
                                 OutlinedTextField(
                                     value = dateFormatter.format(Date(editSelectedBuyDateMillis)),
-                                    onValueChange = {},
+                                    onValueChange = { /* Read-only, changed by dialog */ },
                                     label = { Text(stringResource(R.string.buy_date_label)) },
                                     readOnly = true,
-                                    trailingIcon = { Icon(Icons.Filled.DateRange, stringResource(R.string.select_date_description)) },
-                                    modifier = Modifier.clickable { editShowDatePickerDialog = true }
+                                    trailingIcon = {
+                                        IconButton(onClick = { editShowDatePickerDialog = true }) {
+                                            Icon(Icons.Filled.DateRange, stringResource(R.string.select_date_description))
+                                        }
+                                    }
                                 )
-                                // TODO: Implement currency selection for editing if necessary.
+                                Spacer(Modifier.height(8.dp))
+
+                                // Currency Dropdown
+                                var currencyExpanded by remember { mutableStateOf(false) }
+                                val currencyOptions = listOf(stringResource(R.string.currency_euro), stringResource(R.string.currency_dollar), stringResource(R.string.currency_other))
+
+                                Box {
+                                    OutlinedTextField(
+                                        value = editSelectedCurrency,
+                                        onValueChange = { /* Read-only, changed by dropdown */ },
+                                        label = { Text(stringResource(R.string.select_currency_label)) },
+                                        readOnly = true,
+                                        modifier = Modifier.fillMaxWidth().clickable { currencyExpanded = true }
+                                    )
+                                    DropdownMenu(
+                                        expanded = currencyExpanded,
+                                        onDismissRequest = { currencyExpanded = false }
+                                    ) {
+                                        currencyOptions.forEach { currency ->
+                                            DropdownMenuItem(
+                                                text = { Text(currency) },
+                                                onClick = {
+                                                    editSelectedCurrency = currency
+                                                    currencyExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         },
                         confirmButton = {
-                            Button(onClick = {
-                                val amount = editAmountInputTfv.text.toDoubleOrNull()
-                                val price = editPriceInputTfv.text.toDoubleOrNull()
-                                if (amount != null && price != null && amount > 0 && price > 0) {
-                                    val updatedTransaction = currentTransaction.copy(
-                                        amount = amount,
-                                        buyPrice = price,
-                                        transactionTimestamp = editSelectedBuyDateMillis,
-                                        currency = editSelectedCurrency
-                                    )
-                                    vusaViewModel.updateTransaction(updatedTransaction)
-                                    transactionToEdit = null
-                                    coroutineScope.launch { snackbarHostState.showSnackbar(getString(R.string.snackbar_transaction_updated)) }
-                                } else {
-                                     coroutineScope.launch { snackbarHostState.showSnackbar(getString(R.string.snackbar_invalid_input)) }
+                            Button(
+                                onClick = {
+                                    val amount = editAmountInputTfv.text.toDoubleOrNull()
+                                    val price = editPriceInputTfv.text.toDoubleOrNull()
+                                    if (amount != null && price != null && amount > 0 && price > 0) {
+                                        val updatedTransaction = currentTransaction.copy(
+                                            amount = amount,
+                                            buyPrice = price,
+                                            transactionTimestamp = editSelectedBuyDateMillis,
+                                            currency = editSelectedCurrency
+                                        )
+                                        vusaViewModel.updateTransaction(updatedTransaction)
+                                        transactionToEdit = null
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.snackbar_transaction_updated))
+                                        }
+                                    } else {
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.snackbar_invalid_input))
+                                        }
+                                    }
                                 }
-                            }) { Text(stringResource(R.string.save_button)) }
+                            ) {
+                                Text(stringResource(R.string.save_button))
+                            }
                         },
                         dismissButton = {
                             TextButton(onClick = { transactionToEdit = null }) {
@@ -304,10 +350,14 @@ class PortfolioDetailActivity : ComponentActivity() {
                                 onClick = {
                                     vusaViewModel.deleteTransactionById(transactionToDelete.id)
                                     showDeleteTransactionConfirmDialog = null
-                                     coroutineScope.launch { snackbarHostState.showSnackbar(getString(R.string.snackbar_transaction_deleted)) }
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(context.getString(R.string.snackbar_transaction_deleted))
+                                    }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) { Text(stringResource(R.string.delete_button)) }
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error )
+                            ) {
+                                Text(stringResource(R.string.delete_button))
+                            }
                         },
                         dismissButton = {
                             TextButton(onClick = { showDeleteTransactionConfirmDialog = null }) {
@@ -319,608 +369,660 @@ class PortfolioDetailActivity : ComponentActivity() {
             }
         }
     }
-}
 
-
-@Composable
-fun PortfolioDetailScreenMainContent(
-    modifier: Modifier = Modifier,
-    portfolioTitle: String,
-    vusaViewModel: VusaViewModel,
-    onEditRequest: (VusaTransaction) -> Unit,
-    onDeleteRequest: (VusaTransaction) -> Unit
-) {
-    val transactions by vusaViewModel.getTransactionsForPortfolio(portfolioTitle).collectAsState(initial = emptyList())
-    val currentMarketPrice by remember { mutableStateOf(100.0) } // Placeholder
-    val portfolioCurrency by remember { mutableStateOf<String?>(null) } // Determine from transactions or settings
-
-    var totalPortfolioValue = 0.0
-    var totalPortfolioCost = 0.0
-    var totalPortfolioProfitLoss = 0.0
-
-    transactions.forEach { transaction ->
-        totalPortfolioCost += transaction.amount * transaction.buyPrice
-        totalPortfolioValue += transaction.amount * currentMarketPrice // Assuming currentMarketPrice is per share
-    }
-    totalPortfolioProfitLoss = totalPortfolioValue - totalPortfolioCost
-    val profitLossPercent = if (totalPortfolioCost > 0) (totalPortfolioProfitLoss / totalPortfolioCost) * 100 else 0.0
-    val profitLossColor = if (totalPortfolioProfitLoss >= 0) Color(0xFF4CAF50) else Color(0xFFF44336) // Green or Red
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    @Composable
+    internal fun PortfolioDetailScreenMainContent(
+        modifier: Modifier = Modifier,
+        portfolioTitle: String,
+        vusaViewModel: VusaViewModel,
+        onEditRequest: (VusaTransaction) -> Unit,
+        onDeleteRequest: (VusaTransaction) -> Unit
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.total_pl_prefix),
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            if (totalPortfolioProfitLoss != 0.0) {
-                Icon(
-                    imageVector = if (totalPortfolioProfitLoss > 0) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown,
-                    contentDescription = if (totalPortfolioProfitLoss > 0) stringResource(R.string.trending_up_description) else stringResource(R.string.trending_down_description),
-                    tint = profitLossColor,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-            Text(
-                text = formatCurrencyFixed(totalPortfolioProfitLoss, portfolioCurrency ?: stringResource(R.string.currency_euro)) +
-                       (if (totalPortfolioCost > 0) " (${formatCurrencyFixed(profitLossPercent, "%")})" else ""),
-                style = MaterialTheme.typography.titleMedium,
-                color = profitLossColor
-            )
-        }
-        Text(
-            text = stringResource(R.string.total_value_prefix) + formatCurrencyFixed(totalPortfolioValue, portfolioCurrency ?: stringResource(R.string.currency_euro)),
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.White,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        val context = LocalContext.current
+        val transactionsState by vusaViewModel.getTransactionsForPortfolio(portfolioTitle).collectAsState(initial = emptyList())
+        val marketDataState by vusaViewModel.marketData.collectAsState(initial = emptyMap())
+        val isLoadingTransactions by vusaViewModel.isLoading.collectAsState()
+        val errorState by vusaViewModel.error.collectAsState()
 
-        if (transactions.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = stringResource(R.string.no_transactions_message),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.Gray
-                )
-            }
-        } else {
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                items(transactions) { transaction ->
-                    TransactionItem(
-                        transaction = transaction,
-                        currentMarketPrice = currentMarketPrice, 
-                        onEditClick = { onEditRequest(transaction) },
-                        onDeleteClick = { onDeleteRequest(transaction) }
+        LaunchedEffect(portfolioTitle) {
+            vusaViewModel.refreshMarketDataForPortfolio(portfolioTitle)
+        }
+
+
+        Column(modifier = modifier.padding(8.dp)) {
+            if (isLoadingTransactions && transactionsState.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (errorState != null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        stringResource(R.string.error_fetching_transactions_prefix) + errorState,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyLarge
                     )
-                    Divider(color = Color.DarkGray)
+                }
+            } else if (transactionsState.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        stringResource(R.string.no_transactions_message),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                LazyColumn(contentPadding = PaddingValues(bottom = 72.dp)) {
+                    items(transactionsState) { transaction ->
+                        TransactionCard(
+                            transaction = transaction,
+                            marketData = marketDataState[transaction.stockSymbol],
+                            onEdit = { onEditRequest(transaction) },
+                            onDelete = { onDeleteRequest(transaction) }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
         }
     }
-}
 
-@Composable
-fun TransactionItem(
-    transaction: VusaTransaction,
-    currentMarketPrice: Double, 
-    onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
-) {
-    val transactionCost = transaction.amount * transaction.buyPrice
-    val currentTransactionValue = transaction.amount * currentMarketPrice
-    val profitLoss = currentTransactionValue - transactionCost
-    val profitLossPercent = if (transactionCost > 0) (profitLoss / transactionCost) * 100 else 0.0
-    val profitLossColor = if (profitLoss >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-    val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp, horizontal = 16.dp)
+    @Composable
+    fun TransactionCard(
+        transaction: VusaTransaction,
+        marketData: VusaViewModel.MarketQuote?,
+        onEdit: () -> Unit,
+        onDelete: () -> Unit
     ) {
-        Row(
+        val context = LocalContext.current
+        val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+
+        val currentPrice = marketData?.price ?: transaction.buyPrice // Fallback to buyPrice if market data not available
+        val priceChange = marketData?.change ?: 0.0
+        val priceChangePercent = marketData?.changePercent ?: 0.0
+
+        val marketValue = transaction.amount * currentPrice
+        val costBasis = transaction.amount * transaction.buyPrice
+        val profitOrLoss = marketValue - costBasis
+        val profitOrLossPercent = if (costBasis != 0.0) (profitOrLoss / costBasis) * 100 else 0.0
+
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
-            Text(
-                text = "Stock Symbol: ${transaction.stockSymbol}", 
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Row {
-                IconButton(onClick = onEditClick) {
-                    Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.edit_button_description), tint = Color.LightGray)
-                }
-                IconButton(onClick = onDeleteClick) {
-                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete_button_description), tint = Color.LightGray)
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = stringResource(R.string.bought_transaction_details, formatDynamicDecimal(transaction.amount), formatCurrency(transaction.buyPrice, transaction.currency), dateFormatter.format(Date(transaction.transactionTimestamp))),
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
-        )
-         if (currentMarketPrice > 0) { 
-            Text(
-                text = stringResource(R.string.market_value_details, formatCurrency(currentTransactionValue, transaction.currency), formatCurrency(currentMarketPrice, transaction.currency)),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
-        } else {
-            Text(
-                text = stringResource(R.string.market_value_na),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.transaction_pl_prefix),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            if (profitLoss != 0.0) {
-                 Icon(
-                    imageVector = if (profitLoss > 0) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown,
-                    contentDescription = if (profitLoss > 0) stringResource(R.string.trending_up_description) else stringResource(R.string.trending_down_description),
-                    tint = profitLossColor,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-            Text(
-                text = "${formatCurrency(profitLoss, transaction.currency)} (${formatCurrencyFixed(profitLossPercent, "%")})",
-                style = MaterialTheme.typography.bodyMedium,
-                color = profitLossColor,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-internal fun StockResultItem(stockInfo: Map<String, String>, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp, horizontal = 16.dp)
-    ) {
-        Text(
-            text = stockInfo["stockSymbol"] ?: "N/A",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-        Text(
-            text = "Name: ${stockInfo["Name"] ?: "N/A"}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
-        )
-        Text(
-            text = "Exchange: ${stockInfo["Exchange"] ?: "N/A"}",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.Gray
-        )
-        Text(
-            text = "Country: ${stockInfo["Country"] ?: "N/A"}",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.Gray
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SearchBottomSheetContent(
-    onDismiss: () -> Unit, 
-    onStockSelected: (stockSymbol: String, companyName: String) -> Unit
-) {
-    var searchText by remember { mutableStateOf(TextFieldValue("")) }
-    val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    var parsedStockResults by remember { mutableStateOf<List<Map<String, String>>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
-    var apiErrorMessage by remember { mutableStateOf<String?>(null) }
-    var noResultsFound by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-        keyboardController?.show()
-    }
-
-    LaunchedEffect(searchText.text) {
-        val currentSearchText = searchText.text.trim()
-        if (currentSearchText.length < 2) { // Minimum 2 chars to search
-            if (isActive) {
-                parsedStockResults = emptyList()
-                apiErrorMessage = null
-                isLoading = false
-                noResultsFound = false
-            }
-            return@LaunchedEffect
-        }
-
-        if (isActive) {
-            isLoading = true
-            apiErrorMessage = null
-            noResultsFound = false
-        }
-        delay(350L) // Debounce
-        if (!isActive) return@LaunchedEffect
-
-        if (currentSearchText == searchText.text.trim()) {
-            try {
-                val encodedSearchText = URLEncoder.encode(currentSearchText, "UTF-8")
-                val url = "https://symlookup.cnbc.com/symlookup.do?output=jsonp&prefix=${encodedSearchText}&callback=renderTickers"
-                val result = fetchSearchResultsFromApi(url)
-                if (!isActive) return@LaunchedEffect
-
-                if (result.containsKey("error")) {
-                    if (isActive) {
-                        apiErrorMessage = result["error"] as String
-                        parsedStockResults = emptyList()
-                        isLoading = false
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = transaction.stockSymbol,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Filled.Edit, stringResource(R.string.edit_button_description))
                     }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Filled.Delete, stringResource(R.string.delete_button_description), tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Bought details
+                Text(
+                    text = stringResource(R.string.bought_transaction_details,
+                        formatDynamicDecimal(transaction.amount),
+                        formatCurrency(transaction.buyPrice, transaction.currency),
+                        dateFormatter.format(Date(transaction.transactionTimestamp))
+                    ),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                // Market Value details
+                if (marketData != null) {
+                     Text(
+                        text = stringResource(R.string.market_value_details,
+                            formatCurrency(marketValue, transaction.currency),
+                            formatCurrency(currentPrice, transaction.currency)
+                        ),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 } else {
-                    var content = result["content"] as? String ?: ""
-                    val callbackPrefix = "renderTickers("
-                    if (content.startsWith(callbackPrefix) && content.endsWith(")")) {
-                        content = content.substring(callbackPrefix.length, content.length - 1)
-                    }
-                    
-                    if (content.isBlank() || content == "[]") {
-                        if (isActive) {
-                            noResultsFound = true
-                            parsedStockResults = emptyList()
-                            isLoading = false
-                        }
-                        return@LaunchedEffect
-                    }
+                    Text(
+                        stringResource(R.string.market_value_na),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                }
 
-                    val jsonArray = JSONArray(content)
-                    if (jsonArray.length() > 0) {
-                        val firstItem = jsonArray.getJSONObject(0)
-                        if (firstItem.optString("TotalMatchAvailable", "0") == "0" && jsonArray.length() == 1) {
-                            if (isActive) {
-                                noResultsFound = true
-                                parsedStockResults = emptyList()
-                            }
-                        } else {
-                            val results = mutableListOf<Map<String, String>>()
-                            val startIndex = if(firstItem.has("symbolName")) 0 else 1 
-                            for (i in startIndex until jsonArray.length()) {
-                                val stockObject = jsonArray.getJSONObject(i)
-                                results.add(mapOf(
-                                    "stockSymbol" to stockObject.optString("symbolName", "N/A"),
-                                    "Name" to stockObject.optString("companyName", "N/A"),
-                                    "Exchange" to stockObject.optString("exchangeName", "N/A"),
-                                    "Country" to stockObject.optString("countryCode", "N/A")
-                                ))
-                            }
-                            if (isActive) {
-                                parsedStockResults = results
-                                if(results.isEmpty() && !firstItem.has("symbolName")) noResultsFound = true else noResultsFound = false 
-                            }
-                        }
-                    } else {
-                        if (isActive) {
-                            noResultsFound = true
-                            parsedStockResults = emptyList()
-                        }
-                    }
-                    if (isActive) isLoading = false // Ensure isLoading is set to false after processing
-                }
-            } catch (e: JSONException) {
-                Log.e("SearchBottomSheet", "JSON parsing error: ${e.message}")
-                if (isActive) {
-                    isLoading = false
-                    apiErrorMessage = "Failed to parse search results."
-                    parsedStockResults = emptyList()
-                }
-            } catch (e: Exception) {
-                Log.e("SearchBottomSheet", "Search error: ${e.message}")
-                if (isActive) {
-                    isLoading = false
-                    apiErrorMessage = "Search failed: ${e.message}"
-                    parsedStockResults = emptyList()
+                Spacer(Modifier.height(8.dp))
+
+                // Profit/Loss details
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (profitOrLoss >= 0) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown,
+                        contentDescription = if (profitOrLoss >= 0) stringResource(R.string.trending_up_description) else stringResource(R.string.trending_down_description),
+                        tint = if (profitOrLoss >= 0) Color(0xFF4CAF50) else Color(0xFFF44336) // Green/Red
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "${formatCurrency(profitOrLoss, transaction.currency)} (${formatCurrencyFixed(profitOrLossPercent, "%")})",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (profitOrLoss >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                    )
                 }
             }
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp)
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun AddTransactionSheetContent(
+        onDismiss: () -> Unit,
+        vusaViewModel: VusaViewModel,
+        portfolioName: String,
+        initialStockSymbol: String? = null, // Can be pre-filled from search
+        initialStockName: String? = null,   // Can be pre-filled from search
+        snackbarHostState: SnackbarHostState
     ) {
-        Row(
+        val context = LocalContext.current
+        var stockSymbolInput by remember { mutableStateOf(TextFieldValue(initialStockSymbol ?: "")) }
+        var quantityInputTfv by remember { mutableStateOf(TextFieldValue("")) }
+        var priceInputTfv by remember { mutableStateOf(TextFieldValue("")) }
+        var selectedBuyDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+        var showDatePickerDialog by remember { mutableStateOf(false) }
+        val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+        val coroutineScope = rememberCoroutineScope()
+        val focusManager = LocalFocusManager.current
+
+        var selectedCurrency by remember { mutableStateOf(context.getString(R.string.currency_euro)) } // Default to Euro
+
+        if (showDatePickerDialog) {
+            val calendar = Calendar.getInstance().apply { timeInMillis = selectedBuyDateMillis }
+            DatePickerDialog(
+                context,
+                { _: DatePicker, year: Int, month: Int, dayOfMonth: Int ->
+                    calendar.set(year, month, dayOfMonth)
+                    selectedBuyDateMillis = calendar.timeInMillis
+                    showDatePickerDialog = false
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
+            ).show()
+        }
+
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                stringResource(R.string.search_stocks_sheet_title),
-                 style = MaterialTheme.typography.headlineSmall,
-                 color = Color.White
+                text = stringResource(R.string.add_transaction_to_portfolio_title, portfolioName),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(bottom = 16.dp)
             )
-            IconButton(onClick = onDismiss) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = stringResource(R.string.close_button),
-                    tint = Color.White
-                )
-            }
-        }
-        OutlinedTextField(
-            value = searchText,
-            onValueChange = { searchText = it },
-            label = { Text(stringResource(R.string.search_stocks_textfield_label)) },
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-            shape = MaterialTheme.shapes.large,
-            trailingIcon = if (searchText.text.isNotEmpty()) {
-                    { IconButton(onClick = { searchText = TextFieldValue("") }) { Icon(Icons.Filled.Clear, stringResource(R.string.clear_button_description)) } }
-                } else null
-        )
-        Spacer(modifier = Modifier.height(16.dp))
 
-        when {
-            isLoading -> {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            OutlinedTextField(
+                value = stockSymbolInput,
+                onValueChange = { stockSymbolInput = it },
+                label = { Text(stringResource(R.string.stock_symbol_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            initialStockName?.let {
+                Text("Name: $it", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
-            apiErrorMessage != null -> {
-                Text(
-                    text = stringResource(R.string.search_stocks_error_prefix) + apiErrorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = quantityInputTfv,
+                onValueChange = { quantityInputTfv = formatDecimalInputTfv(quantityInputTfv, it.text, 4) }, // Allow decimals for quantity
+                label = { Text(stringResource(R.string.quantity_label)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = priceInputTfv,
+                onValueChange = { priceInputTfv = formatDecimalInputTfv(priceInputTfv, it.text, 4) }, // Allow up to 4 decimal places for price
+                label = { Text(stringResource(R.string.buy_price_label_add_tx)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = dateFormatter.format(Date(selectedBuyDateMillis)),
+                onValueChange = { /* Read-only */ },
+                label = { Text(stringResource(R.string.buy_date_label)) },
+                readOnly = true,
+                modifier = Modifier.fillMaxWidth(),
+                trailingIcon = {
+                    IconButton(onClick = { showDatePickerDialog = true }) {
+                        Icon(Icons.Filled.DateRange, stringResource(R.string.select_date_description))
+                    }
+                }
+            )
+            Spacer(Modifier.height(8.dp))
+
+            // Currency Dropdown
+            var currencyExpanded by remember { mutableStateOf(false) }
+            val currencyOptions = listOf(stringResource(R.string.currency_euro), stringResource(R.string.currency_dollar), stringResource(R.string.currency_other))
+
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = selectedCurrency,
+                    onValueChange = { /* Read-only, changed by dropdown */ },
+                    label = { Text(stringResource(R.string.select_currency_label)) },
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth().clickable { currencyExpanded = true }
                 )
-            }
-            noResultsFound && searchText.text.length >=2 -> {
-                Text(
-                    text = stringResource(R.string.search_stocks_no_results),
-                    color = Color.Gray,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-            parsedStockResults.isNotEmpty() -> {
-                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                    items(parsedStockResults) { stockInfo ->
-                        StockResultItem(stockInfo = stockInfo, onClick = {
-                            onStockSelected(stockInfo["stockSymbol"] ?: "", stockInfo["Name"] ?: "")
-                        })
-                        Divider(color = Color.DarkGray.copy(alpha = 0.5f))
+                DropdownMenu(
+                    expanded = currencyExpanded,
+                    onDismissRequest = { currencyExpanded = false }
+                ) {
+                    currencyOptions.forEach { currency ->
+                        DropdownMenuItem(
+                            text = { Text(currency) },
+                            onClick = {
+                                selectedCurrency = currency
+                                currencyExpanded = false
+                            }
+                        )
                     }
                 }
             }
-            searchText.text.length < 2 && searchText.text.isNotEmpty() -> {
-                 Text(
-                    text = "Keep typing to search...", // TODO: Add to strings.xml
-                    color = Color.Gray,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
+            Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick = {
+                    focusManager.clearFocus() // Dismiss keyboard
+                    val stockSymbol = stockSymbolInput.text.trim()
+                    val quantity = quantityInputTfv.text.toDoubleOrNull()
+                    val price = priceInputTfv.text.toDoubleOrNull()
+
+                    if (stockSymbol.isNotBlank() && quantity != null && quantity > 0 && price != null && price > 0) {
+                        val transaction = VusaTransaction(
+                            stockSymbol = stockSymbol,
+                            amount = quantity,
+                            buyPrice = price,
+                            transactionTimestamp = selectedBuyDateMillis,
+                            currency = selectedCurrency,
+                            portfolioName = portfolioName
+                        )
+                        vusaViewModel.addVusaTransaction(transaction)
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(context.getString(R.string.snackbar_transaction_saved))
+                        }
+                        onDismiss() // Dismiss the bottom sheet
+                    } else {
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(context.getString(R.string.error_invalid_amount_price))
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.add_transaction_button))
+            }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel_button))
             }
         }
     }
-}
 
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddTransactionSheetContent(
-    onDismiss: () -> Unit,
-    vusaViewModel: VusaViewModel,
-    portfolioName: String,
-    initialStockSymbol: String?,
-    initialStockName: String?, // You might want to display this
-    snackbarHostState: SnackbarHostState // Use the activity's snackbar for global messages
-) {
-    var stockSymbolInputTfv by remember { mutableStateOf(TextFieldValue(initialStockSymbol ?: "")) }
-    // TODO: Add a TextField in the UI for stockNameInput if you want to display/edit it.
-    var stockNameInput by remember { mutableStateOf(TextFieldValue(initialStockName ?: "")) } 
-    var amountInputTfv by remember { mutableStateOf(TextFieldValue("")) }
-    var priceInputTfv by remember { mutableStateOf(TextFieldValue("")) } // Corrected mutableStateOf
-    var selectedBuyDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
-    var showDatePickerDialog by remember { mutableStateOf(false) }
-    val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-
-    val initialSelectedCurrencyValue = stringResource(R.string.currency_euro)
-    var selectedCurrency by remember { mutableStateOf(initialSelectedCurrencyValue) }
-
-    val focusManager = LocalFocusManager.current
-    val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
-
-    if (showDatePickerDialog) {
-        val calendar = Calendar.getInstance().apply {
-            timeInMillis = selectedBuyDateMillis
-        }
-        DatePickerDialog(
-            context,
-            { _: DatePicker, year: Int, month: Int, dayOfMonth: Int -> // Explicit types
-                calendar.set(year, month, dayOfMonth)
-                selectedBuyDateMillis = calendar.timeInMillis
-                showDatePickerDialog = false
-            },
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH),
-            calendar.get(Calendar.DAY_OF_MONTH)
-        ).show() // Added .show()
-    }
-
-    Scaffold(
-        // snackbarHost = { SnackbarHost(localSnackbarHostState) }, // Use global snackbarHostState passed in
-        containerColor = Color.Black 
-    ) { paddingValues ->
+    @Composable
+    internal fun StockResultItem(stockInfo: Map<String, String>, onClick: () -> Unit) {
+        val context = LocalContext.current // For string resources
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(paddingValues) 
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp) // Increased spacing
+                .clickable(onClick = onClick)
+                .padding(vertical = 8.dp, horizontal = 16.dp)
+        ) {
+            Text(
+                text = stockInfo["stockSymbol"] ?: context.getString(R.string.search_stocks_na_placeholder),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = "Name: ${stockInfo["companyName"] ?: context.getString(R.string.search_stocks_na_placeholder)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
+            // Display Last, Change, Change %
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    text = "Last: ${stockInfo["last"] ?: context.getString(R.string.search_stocks_na_placeholder)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.LightGray
+                )
+                Text(
+                    text = "Change: ${stockInfo["change"] ?: context.getString(R.string.search_stocks_na_placeholder)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if ((stockInfo["change"]?.toDoubleOrNull() ?: 0.0) >= 0) Color.Green else Color.Red
+                )
+                Text(
+                    text = "Change %: ${stockInfo["change_pct"] ?: context.getString(R.string.search_stocks_na_placeholder)}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if ((stockInfo["change_pct"]?.toDoubleOrNull() ?: 0.0) >= 0) Color.Green else Color.Red
+                )
+            }
+            Text(
+                text = "Exchange: ${stockInfo["Exchange"] ?: context.getString(R.string.search_stocks_na_placeholder)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+            Text(
+                text = "Country: ${stockInfo["Country"] ?: context.getString(R.string.search_stocks_na_placeholder)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun SearchBottomSheetContent(
+        onDismiss: () -> Unit,
+        onStockSelected: (stockSymbol: String, companyName: String) -> Unit
+    ) {
+        var searchText by remember { mutableStateOf(TextFieldValue("")) }
+        val focusRequester = remember { FocusRequester() }
+        val keyboardController = LocalSoftwareKeyboardController.current
+        var parsedStockResults by remember { mutableStateOf<List<Map<String, String>>>(emptyList()) }
+        var isLoading by remember { mutableStateOf(false) }
+        var apiErrorMessage by remember { mutableStateOf<String?>(null) }
+        var noResultsFound by remember { mutableStateOf(false) }
+        var symbolNamesFound by remember { mutableStateOf<List<String>>(emptyList()) }
+        val context = LocalContext.current
+
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+
+        // Effect for the first API call (Symbol Lookup)
+        LaunchedEffect(searchText.text) {
+            val currentSearchText = searchText.text.trim()
+            if (currentSearchText.length < 2) {
+                if (isActive) {
+                    parsedStockResults = emptyList()
+                    apiErrorMessage = null
+                    isLoading = false
+                    noResultsFound = false
+                    symbolNamesFound = emptyList()
+                }
+                return@LaunchedEffect
+            }
+
+            if (isActive) {
+                isLoading = true
+                apiErrorMessage = null
+                noResultsFound = false
+                parsedStockResults = emptyList() // Clear previous results before new search
+                symbolNamesFound = emptyList()
+            }
+            delay(350L) // Debounce
+            if (!isActive) return@LaunchedEffect
+
+            if (currentSearchText == searchText.text.trim()) {
+                // First API Call: Get symbol names
+                try {
+                    val encodedSearchText = URLEncoder.encode(currentSearchText, "UTF-8")
+                    val symLookupUrl = "https://symlookup.cnbc.com/symlookup.do?output=jsonp&prefix=${encodedSearchText}&callback=renderTickers"
+                    Log.d("SearchBottomSheet", "Symbol Lookup URL: $symLookupUrl")
+                    val symLookupResult = fetchSearchResultsFromApi(symLookupUrl)
+                    if (!isActive) return@LaunchedEffect
+
+                    if (symLookupResult.containsKey("error")) {
+                        if (isActive) {
+                            apiErrorMessage = symLookupResult["error"] as? String ?: "Symbol lookup failed"
+                            // parsedStockResults = emptyList() // Already cleared
+                            // isLoading = false // Handled in finally
+                            noResultsFound = true
+                        }
+                    } else {
+                        var symContent = symLookupResult["content"] as? String ?: ""
+                        val callbackPrefix = "renderTickers("
+                        if (symContent.startsWith(callbackPrefix) && symContent.endsWith(")")) {
+                            symContent = symContent.substring(callbackPrefix.length, symContent.length - 1)
+                        }
+
+                        if (symContent.isBlank() || symContent == "[]") {
+                            if (isActive) {
+                                noResultsFound = true
+                                // parsedStockResults = emptyList() // Already cleared
+                                // isLoading = false // Handled in finally
+                            }
+                            // return@LaunchedEffect // Don't return, let finally handle isLoading
+                        } else {
+                            val symJsonArray = JSONArray(symContent)
+                            val currentSymbolNames = mutableListOf<String>()
+                            if (symJsonArray.length() > 0) {
+                                val firstSymItem = symJsonArray.getJSONObject(0)
+                                if (!(firstSymItem.optString("TotalMatchAvailable", "0") == "0" && symJsonArray.length() == 1)) {
+                                    val startIndex = if (firstSymItem.has("symbolName")) 0 else 1
+                                    for (i in startIndex until symJsonArray.length()) {
+                                        val stockObject = symJsonArray.getJSONObject(i)
+                                        stockObject.optString("symbolName", null)?.let { symbolName ->
+                                            if (symbolName.isNotBlank()) currentSymbolNames.add(symbolName)
+                                        }
+                                    }
+                                }
+                            }
+                            if (isActive) {
+                               symbolNamesFound = currentSymbolNames // Store for the second call effect
+                               if (currentSymbolNames.isEmpty()) {
+                                   noResultsFound = true
+                               }
+                            }
+                        }
+                    }
+                } catch (e: JSONException) {
+                    Log.e("SearchBottomSheet", "Symbol lookup JSON parsing error: ${e.message}")
+                    if (isActive) {
+                        apiErrorMessage = "Failed to parse symbol lookup results."
+                        noResultsFound = true
+                    }
+                } catch (e: Exception) {
+                    Log.e("SearchBottomSheet", "Symbol lookup search error: ${e.message}")
+                    if (isActive) {
+                        apiErrorMessage = "Symbol lookup failed: ${e.message}"
+                        noResultsFound = true
+                    }
+                } finally {
+                    // If no symbols found from the first call, or if first call failed, stop loading.
+                    // Otherwise, loading continues for the second call triggered by LaunchedEffect(symbolNamesFound)
+                    if (isActive && (symbolNamesFound.isEmpty() || apiErrorMessage != null)) {
+                        isLoading = false
+                    }
+                }
+            }
+        }
+
+        // Effect for the second API call, triggered when symbolNamesFound changes and is not empty
+        LaunchedEffect(symbolNamesFound) {
+            if (symbolNamesFound.isEmpty()) {
+                if (searchText.text.trim().length >= 2 && parsedStockResults.isEmpty() && apiErrorMessage == null) {
+                     // If search text is present, but no symbols were found and no error from first call,
+                     // it means the first call completed but yielded no symbols.
+                     if(isActive) noResultsFound = true
+                }
+                if(isActive && apiErrorMessage == null) isLoading = false // Stop loading if no symbols and no error from 1st call
+                return@LaunchedEffect
+            }
+            
+            if (isActive) {
+                 if (apiErrorMessage == null) isLoading = true // Only set loading if first call was ok
+                 // apiErrorMessage = null // Reset for the second call if needed, or manage separately
+                 // noResultsFound = false // Reset for the second call
+            }
+
+            // Second API Call: Get quotes for the found symbols
+            try {
+                val joinedSymbols = symbolNamesFound.map { URLEncoder.encode(it, "UTF-8") }.joinToString("%7C")
+                val quoteUrl = "https://quote.cnbc.com/quote-html-webservice/quote.htm?&symbols=${joinedSymbols}&output=json"
+                Log.d("SearchBottomSheet", "Quote URL: $quoteUrl")
+                val quoteResult = fetchSearchResultsFromApi(quoteUrl)
+                if (!isActive) return@LaunchedEffect
+
+                if (quoteResult.containsKey("error")) {
+                    if (isActive) {
+                        apiErrorMessage = quoteResult["error"] as? String ?: "Fetching quotes failed"
+                        parsedStockResults = emptyList()
+                        noResultsFound = true
+                    }
+                } else {
+                    val quoteContent = quoteResult["content"] as? String ?: ""
+                    if (quoteContent.isBlank()) {
+                            if (isActive) {
+                               noResultsFound = true
+                               parsedStockResults = emptyList()
+                            }
+                    } else {
+                        val quoteJsonResponse = JSONObject(quoteContent)
+                        val quickQuoteArray = quoteJsonResponse.optJSONObject("QuickQuoteResult")?.optJSONArray("QuickQuote")
+                        val results = mutableListOf<Map<String, String>>()
+                        if (quickQuoteArray != null && quickQuoteArray.length() > 0) {
+                            for (i in 0 until quickQuoteArray.length()) {
+                                val stockObject = quickQuoteArray.getJSONObject(i)
+                                results.add(mapOf(
+                                    "stockSymbol" to stockObject.optString("symbol", context.getString(R.string.search_stocks_na_placeholder)),
+                                    "companyName" to stockObject.optString("name", context.getString(R.string.search_stocks_na_placeholder)),
+                                    "Exchange" to stockObject.optString("exchange", context.getString(R.string.search_stocks_na_placeholder)),
+                                    "Country" to stockObject.optString("countryCode", context.getString(R.string.search_stocks_na_placeholder)),
+                                    "last" to stockObject.optString("last", context.getString(R.string.search_stocks_na_placeholder)),
+                                    "change" to stockObject.optString("change", context.getString(R.string.search_stocks_na_placeholder)),
+                                    "change_pct" to stockObject.optString("change_pct", context.getString(R.string.search_stocks_na_placeholder))
+                                ))
+                            }
+                        }
+                        if (isActive) {
+                            parsedStockResults = results
+                            if (results.isEmpty()) noResultsFound = true else noResultsFound = false
+                             apiErrorMessage = null // Clear previous error if second call is successful
+                        }
+                    }
+                }
+            } catch (e: JSONException) {
+                Log.e("SearchBottomSheet", "Quote JSON parsing error: ${e.message}")
+                if (isActive) {
+                    apiErrorMessage = "Failed to parse quote results."
+                    parsedStockResults = emptyList()
+                    noResultsFound = true
+                }
+            } catch (e: Exception) {
+                Log.e("SearchBottomSheet", "Quote search error: ${e.message}")
+                if (isActive) {
+                    apiErrorMessage = "Quote search failed: ${e.message}"
+                    parsedStockResults = emptyList()
+                    noResultsFound = true
+                }
+            } finally {
+                if (isActive) isLoading = false
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = stringResource(R.string.add_transaction_to_portfolio_title, portfolioName),
-                    style = MaterialTheme.typography.titleLarge, 
-                    color = Color.White 
+                    stringResource(R.string.search_stocks_sheet_title),
+                     style = MaterialTheme.typography.headlineSmall,
+                     color = Color.White
                 )
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close_button), tint = Color.White)
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.close_button),
+                        tint = Color.White
+                    )
                 }
             }
-            
-            // Optional: Display Stock Name (if you added a field for it)
-            // if (stockNameInput.text.isNotEmpty()) {
-            //     OutlinedTextField(
-            //         value = stockNameInput,
-            //         onValueChange = { stockNameInput = it }, 
-            //         label = { Text("Stock Name (Optional)") }, // Add to strings.xml
-            //         singleLine = true,
-            //         shape = MaterialTheme.shapes.large,
-            //         modifier = Modifier.fillMaxWidth(),
-            //         readOnly = true, // Or allow editing
-            //         colors = OutlinedTextFieldDefaults.colors( // Make it look less interactive if readOnly
-            //             disabledTextColor = LocalContentColor.current.copy(LocalContentAlpha.current),
-            //             disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = ContentAlpha.disabled),
-            //             disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(ContentAlpha.medium)
-            //         )
-            //     )
-            // }
-
             OutlinedTextField(
-                value = stockSymbolInputTfv,
-                onValueChange = { stockSymbolInputTfv = TextFieldValue(it.text.uppercase(Locale.getDefault()), it.selection) },
-                label = { Text(stringResource(R.string.stock_symbol_label)) },
+                value = searchText,
+                onValueChange = { searchText = it },
+                label = { Text(stringResource(R.string.search_stocks_textfield_label)) },
                 singleLine = true,
-                shape = MaterialTheme.shapes.large,
-                modifier = Modifier.fillMaxWidth(),
-                 trailingIcon = if (stockSymbolInputTfv.text.isNotEmpty()) {
-                    { IconButton(onClick = { stockSymbolInputTfv = TextFieldValue("") }) { Icon(Icons.Filled.Clear, stringResource(R.string.clear_button_description)) } }
-                } else null
-            )
-
-            OutlinedTextField(
-                value = amountInputTfv,
-                onValueChange = { amountInputTfv = formatDecimalInputTfv(amountInputTfv, it.text) },
-                label = { Text(stringResource(R.string.quantity_label)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                shape = MaterialTheme.shapes.large,
-                modifier = Modifier.fillMaxWidth(),
-                trailingIcon = if (amountInputTfv.text.isNotEmpty()) {
-                    { IconButton(onClick = { amountInputTfv = TextFieldValue("") }) { Icon(Icons.Filled.Clear, stringResource(R.string.clear_button_description)) } }
-                } else null
-            )
-
-            OutlinedTextField(
-                value = priceInputTfv,
-                onValueChange = { priceInputTfv = formatDecimalInputTfv(priceInputTfv, it.text) },
-                label = { Text(stringResource(R.string.buy_price_label_add_tx)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                shape = MaterialTheme.shapes.large,
-                modifier = Modifier.fillMaxWidth(),
-                trailingIcon = if (priceInputTfv.text.isNotEmpty()) {
-                    { IconButton(onClick = { priceInputTfv = TextFieldValue("") }) { Icon(Icons.Filled.Clear, stringResource(R.string.clear_button_description)) } }
-                } else null
-            )
-
-            OutlinedTextField(
-                value = dateFormatter.format(Date(selectedBuyDateMillis)),
-                onValueChange = {}, 
-                label = { Text(stringResource(R.string.buy_date_label)) },
-                readOnly = true,
-                shape = MaterialTheme.shapes.large,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showDatePickerDialog = true },
-                trailingIcon = { Icon(Icons.Filled.DateRange, stringResource(R.string.select_date_description)) }
+                    .focusRequester(focusRequester),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                shape = MaterialTheme.shapes.large,
+                trailingIcon = if (searchText.text.isNotEmpty()) {
+                        { IconButton(onClick = { 
+                            searchText = TextFieldValue("") 
+                            // Manually clear results when text is cleared
+                            parsedStockResults = emptyList()
+                            noResultsFound = false
+                            apiErrorMessage = null
+                            symbolNamesFound = emptyList() // also clear symbol names
+                        }) { Icon(Icons.Filled.Clear, stringResource(R.string.clear_button_description)) } }
+                    } else null
             )
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly, 
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                listOf(
-                    stringResource(R.string.currency_euro),
-                    stringResource(R.string.currency_dollar),
-                    stringResource(R.string.currency_other)
-                ).forEachIndexed { index, currency ->
-                    OutlinedButton(
-                        onClick = { selectedCurrency = currency },
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.large,
-                        border = BorderStroke(
-                            1.dp,
-                            if (selectedCurrency == currency) MaterialTheme.colorScheme.primary else Color.Gray
-                        ),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (selectedCurrency == currency) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
-                        )
-                    ) { Text(currency) }
-                    if (index < 2) Spacer(modifier = Modifier.width(8.dp)) // Add spacer except for the last item
+            when {
+                isLoading -> {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
                 }
-            }
-
-            Button(
-                onClick = {
-                    focusManager.clearFocus()
-                    val symbol = stockSymbolInputTfv.text.trim()
-                    val amount = amountInputTfv.text.toDoubleOrNull()
-                    val buyPrice = priceInputTfv.text.toDoubleOrNull()
-
-                    if (symbol.isBlank() || amount == null || buyPrice == null || amount <= 0 || buyPrice <= 0) {
-                        coroutineScope.launch { snackbarHostState.showSnackbar(context.getString(R.string.snackbar_invalid_input)) }
-                    } else {
-                        val newTransaction = VusaTransaction(
-                            portfolioName = portfolioName,
-                            stockSymbol = symbol,
-                            // companyName = stockNameInput.text.trim(), // TODO: Uncomment if you add companyName to VusaTransaction
-                            amount = amount,
-                            buyPrice = buyPrice,
-                            currency = selectedCurrency,
-                            transactionTimestamp = selectedBuyDateMillis
-                        )
-                        vusaViewModel.insertTransaction(newTransaction)
-                        coroutineScope.launch { 
-                            snackbarHostState.showSnackbar(context.getString(R.string.snackbar_transaction_saved))
-                            onDismiss() // Close sheet after saving and showing snackbar
+                apiErrorMessage != null -> {
+                    Text(
+                        text = stringResource(R.string.search_stocks_error_prefix) + apiErrorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+                noResultsFound && searchText.text.trim().length >=2 -> {
+                    Text(
+                        text = stringResource(R.string.search_stocks_no_results),
+                        color = Color.Gray,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+                parsedStockResults.isNotEmpty() -> {
+                    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                        items(parsedStockResults) { stockInfo ->
+                            Log.d("SearchBottomSheet", "StockInfo for item: $stockInfo") // <-- Added this log
+                            StockResultItem(stockInfo = stockInfo, onClick = {
+                                onStockSelected(
+                                    stockInfo["stockSymbol"] ?: "",
+                                    stockInfo["companyName"] ?: ""
+                                )
+                            })
+                            Divider(color = Color.DarkGray.copy(alpha = 0.5f))
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp), // Added padding top
-                enabled = stockSymbolInputTfv.text.isNotBlank() && amountInputTfv.text.isNotBlank() && priceInputTfv.text.isNotBlank()
-            ) {
-                Text(stringResource(R.string.add_transaction_button))
+                }
+                searchText.text.length < 2 && searchText.text.isNotEmpty() -> {
+                     Text(
+                        text = stringResource(R.string.search_stocks_enter_more_chars),
+                        color = Color.Gray,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
             }
         }
     }
 }
-
