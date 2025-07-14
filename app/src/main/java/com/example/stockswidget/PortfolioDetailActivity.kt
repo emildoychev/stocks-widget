@@ -45,8 +45,6 @@ import com.example.stockswidget.data.VusaViewModel
 import com.example.stockswidget.data.VusaViewModelFactory
 import com.example.stockswidget.ui.theme.StocksWidgetTheme
 import com.example.stockswidget.util.fetchSearchResultsFromApi
-import com.example.stockswidget.util.formatCurrency
-import com.example.stockswidget.util.formatCurrencyFixed
 import com.example.stockswidget.util.formatDynamicDecimal
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -226,7 +224,6 @@ class PortfolioDetailActivity : ComponentActivity() {
                     var editPriceInputTfv by remember { mutableStateOf(TextFieldValue(currentTransaction.buyPrice.toString())) }
                     var editSelectedBuyDateMillis by remember { mutableStateOf(currentTransaction.transactionTimestamp) }
                     var editShowDatePickerDialog by remember { mutableStateOf(false) }
-                    var editSelectedCurrency by remember { mutableStateOf(currentTransaction.currency) }
 
                     if (editShowDatePickerDialog) {
                         val calendar = Calendar.getInstance().apply { timeInMillis = editSelectedBuyDateMillis }
@@ -280,34 +277,6 @@ class PortfolioDetailActivity : ComponentActivity() {
                                     }
                                 )
                                 Spacer(Modifier.height(8.dp))
-
-                                // Currency Dropdown
-                                var currencyExpanded by remember { mutableStateOf(false) }
-                                val currencyOptions = listOf(stringResource(R.string.currency_euro), stringResource(R.string.currency_dollar), stringResource(R.string.currency_other))
-
-                                Box {
-                                    OutlinedTextField(
-                                        value = editSelectedCurrency,
-                                        onValueChange = { /* Read-only, changed by dropdown */ },
-                                        label = { Text(stringResource(R.string.select_currency_label)) },
-                                        readOnly = true,
-                                        modifier = Modifier.fillMaxWidth().clickable { currencyExpanded = true }
-                                    )
-                                    DropdownMenu(
-                                        expanded = currencyExpanded,
-                                        onDismissRequest = { currencyExpanded = false }
-                                    ) {
-                                        currencyOptions.forEach { currency ->
-                                            DropdownMenuItem(
-                                                text = { Text(currency) },
-                                                onClick = {
-                                                    editSelectedCurrency = currency
-                                                    currencyExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
                             }
                         },
                         confirmButton = {
@@ -319,8 +288,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                         val updatedTransaction = currentTransaction.copy(
                                             amount = amount,
                                             buyPrice = price,
-                                            transactionTimestamp = editSelectedBuyDateMillis,
-                                            currency = editSelectedCurrency
+                                            transactionTimestamp = editSelectedBuyDateMillis
                                         )
                                         vusaViewModel.updateTransaction(updatedTransaction)
                                         transactionToEdit = null
@@ -484,7 +452,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                 Text(
                     text = stringResource(R.string.bought_transaction_details,
                         formatDynamicDecimal(transaction.amount),
-                        formatCurrency(transaction.buyPrice, transaction.currency),
+                        formatDynamicDecimal(transaction.buyPrice),
                         dateFormatter.format(Date(transaction.transactionTimestamp))
                     ),
                     style = MaterialTheme.typography.bodyMedium
@@ -496,8 +464,8 @@ class PortfolioDetailActivity : ComponentActivity() {
                 if (priceToDisplayInMarketSection != null && totalValueToDisplayInMarketSection != null) {
                     Text(
                         text = stringResource(R.string.market_value_details,
-                            formatCurrency(totalValueToDisplayInMarketSection, transaction.currency),
-                            formatCurrency(priceToDisplayInMarketSection, transaction.currency)
+                            formatDynamicDecimal(totalValueToDisplayInMarketSection),
+                            formatDynamicDecimal(priceToDisplayInMarketSection)
                         ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (isMarketDataActuallyLive) MaterialTheme.colorScheme.onSurface else Color.Gray
@@ -521,7 +489,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        text = "${formatCurrency(profitOrLoss, transaction.currency)} (${formatCurrencyFixed(profitOrLossPercent, "%")})",
+                        text = "${formatDynamicDecimal(profitOrLoss)} (${formatDynamicDecimal(profitOrLossPercent)}%)",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (profitOrLoss >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
@@ -550,8 +518,6 @@ class PortfolioDetailActivity : ComponentActivity() {
         val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
         val coroutineScope = rememberCoroutineScope()
         val focusManager = LocalFocusManager.current
-
-        var selectedCurrency by remember { mutableStateOf(context.getString(R.string.currency_euro)) } // Default to Euro
 
         if (showDatePickerDialog) {
             val calendar = Calendar.getInstance().apply { timeInMillis = selectedBuyDateMillis }
@@ -653,35 +619,6 @@ class PortfolioDetailActivity : ComponentActivity() {
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
-
-            // Currency Dropdown
-            var currencyExpanded by remember { mutableStateOf(false) }
-            val currencyOptions = listOf(stringResource(R.string.currency_euro), stringResource(R.string.currency_dollar), stringResource(R.string.currency_other))
-
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = selectedCurrency,
-                    onValueChange = { /* Read-only, changed by dropdown */ },
-                    label = { Text(stringResource(R.string.select_currency_label)) },
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth().clickable { currencyExpanded = true }
-                )
-                DropdownMenu(
-                    expanded = currencyExpanded,
-                    onDismissRequest = { currencyExpanded = false }
-                ) {
-                    currencyOptions.forEach { currency ->
-                        DropdownMenuItem(
-                            text = { Text(currency) },
-                            onClick = {
-                                selectedCurrency = currency
-                                currencyExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
             Spacer(Modifier.height(16.dp))
 
             Button(
@@ -698,9 +635,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                             amount = quantity,
                             buyPrice = price,
                             transactionTimestamp = selectedBuyDateMillis,
-                            currency = selectedCurrency,
                             portfolioName = portfolioName,
-                            marketPriceAtPurchase = marketPriceAtPurchase // Include marketPriceAtPurchase
                         )
                         vusaViewModel.addVusaTransaction(transaction)
                         coroutineScope.launch {

@@ -11,7 +11,6 @@ data class VusaTransaction(
     val amount: Double,
     val buyPrice: Double,
     val transactionTimestamp: Long = System.currentTimeMillis(),
-    val currency: String,
     val portfolioName: String,
     val marketPriceAtPurchase: Double? = null // Added this line
 )
