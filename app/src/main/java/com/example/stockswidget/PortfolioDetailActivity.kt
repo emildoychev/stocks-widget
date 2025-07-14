@@ -124,6 +124,7 @@ class PortfolioDetailActivity : ComponentActivity() {
 
                 var selectedStockSymbolForNewTransaction by remember { mutableStateOf<String?>(null) }
                 var selectedStockNameForNewTransaction by remember { mutableStateOf<String?>(null) }
+                var selectedStockLastPriceForNewTransaction by remember { mutableStateOf<String?>(null) } // Added state for last price
 
                 Scaffold(
                     snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -157,6 +158,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                     onClick = {
                                         selectedStockSymbolForNewTransaction = null // Clear previous selection
                                         selectedStockNameForNewTransaction = null
+                                        selectedStockLastPriceForNewTransaction = null // Clear previous price
                                         showSearchStockSheet = true
                                      },
                                     modifier = Modifier.fillMaxWidth()
@@ -184,9 +186,10 @@ class PortfolioDetailActivity : ComponentActivity() {
                     ) {
                         SearchBottomSheetContent(
                             onDismiss = { showSearchStockSheet = false },
-                            onStockSelected = { stockSymbol, companyName ->
+                            onStockSelected = { stockSymbol, companyName, lastPrice -> // Updated callback to include lastPrice
                                 selectedStockSymbolForNewTransaction = stockSymbol
                                 selectedStockNameForNewTransaction = companyName
+                                selectedStockLastPriceForNewTransaction = lastPrice // Store the last price
                                 coroutineScope.launch {
                                     searchSheetState.hide()
                                     showSearchStockSheet = false
@@ -211,7 +214,8 @@ class PortfolioDetailActivity : ComponentActivity() {
                                 portfolioName = portfolioTitleFromIntent,
                                 initialStockSymbol = selectedStockSymbolForNewTransaction,
                                 initialStockName = selectedStockNameForNewTransaction,
-                                snackbarHostState = snackbarHostState // Pass activity's snackbarHostState
+                                initialStockLastPrice = selectedStockLastPriceForNewTransaction, // Pass the last price
+                                snackbarHostState = snackbarHostState 
                             )
                         }
                     }
@@ -436,14 +440,21 @@ class PortfolioDetailActivity : ComponentActivity() {
         val context = LocalContext.current
         val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
 
-        val currentPrice = marketData?.price ?: transaction.buyPrice // Fallback to buyPrice if market data not available
-        val priceChange = marketData?.change ?: 0.0
-        val priceChangePercent = marketData?.changePercent ?: 0.0
+        // Determine the most relevant price for profit/loss and general calculations
+        val priceForCalculations = marketData?.price ?: transaction.marketPriceAtPurchase ?: transaction.buyPrice
 
-        val marketValue = transaction.amount * currentPrice
+        // Constants for calculations
         val costBasis = transaction.amount * transaction.buyPrice
-        val profitOrLoss = marketValue - costBasis
+        val currentMarketValueBasedOnBestPrice = transaction.amount * priceForCalculations
+        val profitOrLoss = currentMarketValueBasedOnBestPrice - costBasis
         val profitOrLossPercent = if (costBasis != 0.0) (profitOrLoss / costBasis) * 100 else 0.0
+
+        // Determine what to display in the "Market Value details" section
+        val (priceToDisplayInMarketSection: Double?, totalValueToDisplayInMarketSection: Double?, isMarketDataActuallyLive: Boolean) = when {
+            marketData != null -> Triple(marketData.price, transaction.amount * marketData.price, true)
+            transaction.marketPriceAtPurchase != null -> Triple(transaction.marketPriceAtPurchase, transaction.amount * transaction.marketPriceAtPurchase!!, false) // Added !! for safety, assuming marketPriceAtPurchase is non-null if this branch is taken
+            else -> Triple(null, null, false) // No live market data or recorded market price at purchase
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -480,14 +491,15 @@ class PortfolioDetailActivity : ComponentActivity() {
 
                 Spacer(Modifier.height(4.dp))
 
-                // Market Value details
-                if (marketData != null) {
-                     Text(
+                // Market Value details - MODIFIED
+                if (priceToDisplayInMarketSection != null && totalValueToDisplayInMarketSection != null) {
+                    Text(
                         text = stringResource(R.string.market_value_details,
-                            formatCurrency(marketValue, transaction.currency),
-                            formatCurrency(currentPrice, transaction.currency)
+                            formatCurrency(totalValueToDisplayInMarketSection, transaction.currency),
+                            formatCurrency(priceToDisplayInMarketSection, transaction.currency)
                         ),
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (isMarketDataActuallyLive) MaterialTheme.colorScheme.onSurface else Color.Gray
                     )
                 } else {
                     Text(
@@ -499,7 +511,7 @@ class PortfolioDetailActivity : ComponentActivity() {
 
                 Spacer(Modifier.height(8.dp))
 
-                // Profit/Loss details
+                // Profit/Loss details - uses updated profitOrLoss and profitOrLossPercent
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = if (profitOrLoss >= 0) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown,
@@ -524,8 +536,9 @@ class PortfolioDetailActivity : ComponentActivity() {
         onDismiss: () -> Unit,
         vusaViewModel: VusaViewModel,
         portfolioName: String,
-        initialStockSymbol: String? = null, // Can be pre-filled from search
-        initialStockName: String? = null,   // Can be pre-filled from search
+        initialStockSymbol: String? = null, 
+        initialStockName: String? = null,   
+        initialStockLastPrice: String? = null, // Added parameter for last price
         snackbarHostState: SnackbarHostState
     ) {
         val context = LocalContext.current
@@ -648,6 +661,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                     val stockSymbol = stockSymbolInput.text.trim()
                     val quantity = quantityInputTfv.text.toDoubleOrNull()
                     val price = priceInputTfv.text.toDoubleOrNull()
+                    val marketPriceAtPurchase = initialStockLastPrice?.toDoubleOrNull() // Parse the last price
 
                     if (stockSymbol.isNotBlank() && quantity != null && quantity > 0 && price != null && price > 0) {
                         val transaction = VusaTransaction(
@@ -656,7 +670,8 @@ class PortfolioDetailActivity : ComponentActivity() {
                             buyPrice = price,
                             transactionTimestamp = selectedBuyDateMillis,
                             currency = selectedCurrency,
-                            portfolioName = portfolioName
+                            portfolioName = portfolioName,
+                            marketPriceAtPurchase = marketPriceAtPurchase // Include marketPriceAtPurchase
                         )
                         vusaViewModel.addVusaTransaction(transaction)
                         coroutineScope.launch {
@@ -735,7 +750,7 @@ class PortfolioDetailActivity : ComponentActivity() {
     @Composable
     fun SearchBottomSheetContent(
         onDismiss: () -> Unit,
-        onStockSelected: (stockSymbol: String, companyName: String) -> Unit
+        onStockSelected: (stockSymbol: String, companyName: String, lastPrice: String) -> Unit // Updated signature
     ) {
         var searchText by remember { mutableStateOf(TextFieldValue("")) }
         val focusRequester = remember { FocusRequester() }
@@ -788,8 +803,6 @@ class PortfolioDetailActivity : ComponentActivity() {
                     if (symLookupResult.containsKey("error")) {
                         if (isActive) {
                             apiErrorMessage = symLookupResult["error"] as? String ?: "Symbol lookup failed"
-                            // parsedStockResults = emptyList() // Already cleared
-                            // isLoading = false // Handled in finally
                             noResultsFound = true
                         }
                     } else {
@@ -802,10 +815,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                         if (symContent.isBlank() || symContent == "[]") {
                             if (isActive) {
                                 noResultsFound = true
-                                // parsedStockResults = emptyList() // Already cleared
-                                // isLoading = false // Handled in finally
                             }
-                            // return@LaunchedEffect // Don't return, let finally handle isLoading
                         } else {
                             val symJsonArray = JSONArray(symContent)
                             val currentSymbolNames = mutableListOf<String>()
@@ -822,7 +832,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                 }
                             }
                             if (isActive) {
-                               symbolNamesFound = currentSymbolNames // Store for the second call effect
+                               symbolNamesFound = currentSymbolNames 
                                if (currentSymbolNames.isEmpty()) {
                                    noResultsFound = true
                                }
@@ -842,8 +852,6 @@ class PortfolioDetailActivity : ComponentActivity() {
                         noResultsFound = true
                     }
                 } finally {
-                    // If no symbols found from the first call, or if first call failed, stop loading.
-                    // Otherwise, loading continues for the second call triggered by LaunchedEffect(symbolNamesFound)
                     if (isActive && (symbolNamesFound.isEmpty() || apiErrorMessage != null)) {
                         isLoading = false
                     }
@@ -855,21 +863,16 @@ class PortfolioDetailActivity : ComponentActivity() {
         LaunchedEffect(symbolNamesFound) {
             if (symbolNamesFound.isEmpty()) {
                 if (searchText.text.trim().length >= 2 && parsedStockResults.isEmpty() && apiErrorMessage == null) {
-                     // If search text is present, but no symbols were found and no error from first call,
-                     // it means the first call completed but yielded no symbols.
                      if(isActive) noResultsFound = true
                 }
-                if(isActive && apiErrorMessage == null) isLoading = false // Stop loading if no symbols and no error from 1st call
+                if(isActive && apiErrorMessage == null) isLoading = false 
                 return@LaunchedEffect
             }
             
             if (isActive) {
-                 if (apiErrorMessage == null) isLoading = true // Only set loading if first call was ok
-                 // apiErrorMessage = null // Reset for the second call if needed, or manage separately
-                 // noResultsFound = false // Reset for the second call
+                 if (apiErrorMessage == null) isLoading = true 
             }
 
-            // Second API Call: Get quotes for the found symbols
             try {
                 val joinedSymbols = symbolNamesFound.map { URLEncoder.encode(it, "UTF-8") }.joinToString("%7C")
                 val quoteUrl = "https://quote.cnbc.com/quote-html-webservice/quote.htm?&symbols=${joinedSymbols}&output=json"
@@ -911,7 +914,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                         if (isActive) {
                             parsedStockResults = results
                             if (results.isEmpty()) noResultsFound = true else noResultsFound = false
-                             apiErrorMessage = null // Clear previous error if second call is successful
+                             apiErrorMessage = null 
                         }
                     }
                 }
@@ -973,11 +976,10 @@ class PortfolioDetailActivity : ComponentActivity() {
                 trailingIcon = if (searchText.text.isNotEmpty()) {
                         { IconButton(onClick = { 
                             searchText = TextFieldValue("") 
-                            // Manually clear results when text is cleared
                             parsedStockResults = emptyList()
                             noResultsFound = false
                             apiErrorMessage = null
-                            symbolNamesFound = emptyList() // also clear symbol names
+                            symbolNamesFound = emptyList() 
                         }) { Icon(Icons.Filled.Clear, stringResource(R.string.clear_button_description)) } }
                     } else null
             )
@@ -1004,11 +1006,12 @@ class PortfolioDetailActivity : ComponentActivity() {
                 parsedStockResults.isNotEmpty() -> {
                     LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
                         items(parsedStockResults) { stockInfo ->
-                            Log.d("SearchBottomSheet", "StockInfo for item: $stockInfo") // <-- Added this log
+                            Log.d("SearchBottomSheet", "StockInfo for item: $stockInfo") 
                             StockResultItem(stockInfo = stockInfo, onClick = {
                                 onStockSelected(
                                     stockInfo["stockSymbol"] ?: "",
-                                    stockInfo["companyName"] ?: ""
+                                    stockInfo["companyName"] ?: "",
+                                    stockInfo["last"] ?: context.getString(R.string.search_stocks_na_placeholder) // Pass last price
                                 )
                             })
                             Divider(color = Color.DarkGray.copy(alpha = 0.5f))
