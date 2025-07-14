@@ -80,4 +80,5 @@
     <!-- New strings for search functionality -->
     <string name="search_stocks_na_placeholder">N/A</string>
     <string name="search_stocks_enter_more_chars">Keep typing to search...</string>
+    <string name="error_invalid_stock_symbol">error</string>
 </resources>

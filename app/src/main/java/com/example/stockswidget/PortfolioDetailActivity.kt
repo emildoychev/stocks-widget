@@ -215,7 +215,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                 initialStockSymbol = selectedStockSymbolForNewTransaction,
                                 initialStockName = selectedStockNameForNewTransaction,
                                 initialStockLastPrice = selectedStockLastPriceForNewTransaction, // Pass the last price
-                                snackbarHostState = snackbarHostState 
+                                snackbarHostState = snackbarHostState
                             )
                         }
                     }
@@ -536,13 +536,12 @@ class PortfolioDetailActivity : ComponentActivity() {
         onDismiss: () -> Unit,
         vusaViewModel: VusaViewModel,
         portfolioName: String,
-        initialStockSymbol: String? = null, 
-        initialStockName: String? = null,   
-        initialStockLastPrice: String? = null, // Added parameter for last price
+        initialStockSymbol: String?,
+        initialStockName: String?,
+        initialStockLastPrice: String?, // Added parameter for last price
         snackbarHostState: SnackbarHostState
     ) {
         val context = LocalContext.current
-        var stockSymbolInput by remember { mutableStateOf(TextFieldValue(initialStockSymbol ?: "")) }
         var quantityInputTfv by remember { mutableStateOf(TextFieldValue("")) }
         var priceInputTfv by remember { mutableStateOf(TextFieldValue("")) }
         var selectedBuyDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -580,17 +579,23 @@ class PortfolioDetailActivity : ComponentActivity() {
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            OutlinedTextField(
-                value = stockSymbolInput,
-                onValueChange = { stockSymbolInput = it },
-                label = { Text(stringResource(R.string.stock_symbol_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            initialStockName?.let {
-                Text("Name: $it", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            // Display Stock Symbol and Name (not editable)
+            initialStockSymbol?.let { symbol ->
+                Text(
+                    text = stringResource(R.string.stock_symbol_label) + ": $symbol",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
-            Spacer(Modifier.height(8.dp))
+            initialStockName?.let { name ->
+                Text(
+                    text = "$name", // Assuming you have a R.string.stock_name_label
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Spacer(Modifier.height(16.dp)) // Increased spacing after symbol/name
 
             OutlinedTextField(
                 value = quantityInputTfv,
@@ -658,12 +663,12 @@ class PortfolioDetailActivity : ComponentActivity() {
             Button(
                 onClick = {
                     focusManager.clearFocus() // Dismiss keyboard
-                    val stockSymbol = stockSymbolInput.text.trim()
+                    val stockSymbol = initialStockSymbol // Use initialStockSymbol
                     val quantity = quantityInputTfv.text.toDoubleOrNull()
                     val price = priceInputTfv.text.toDoubleOrNull()
                     val marketPriceAtPurchase = initialStockLastPrice?.toDoubleOrNull() // Parse the last price
 
-                    if (stockSymbol.isNotBlank() && quantity != null && quantity > 0 && price != null && price > 0) {
+                    if (stockSymbol != null && stockSymbol.isNotBlank() && quantity != null && quantity > 0 && price != null && price > 0) {
                         val transaction = VusaTransaction(
                             stockSymbol = stockSymbol,
                             amount = quantity,
@@ -680,7 +685,11 @@ class PortfolioDetailActivity : ComponentActivity() {
                         onDismiss() // Dismiss the bottom sheet
                     } else {
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar(context.getString(R.string.error_invalid_amount_price))
+                            if (stockSymbol == null || stockSymbol.isBlank()){
+                                snackbarHostState.showSnackbar(context.getString(R.string.error_invalid_stock_symbol)) // You'll need to add this string resource
+                            } else {
+                                snackbarHostState.showSnackbar(context.getString(R.string.error_invalid_amount_price))
+                            }
                         }
                     }
                 },
@@ -832,7 +841,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                                 }
                             }
                             if (isActive) {
-                               symbolNamesFound = currentSymbolNames 
+                               symbolNamesFound = currentSymbolNames
                                if (currentSymbolNames.isEmpty()) {
                                    noResultsFound = true
                                }
@@ -865,12 +874,12 @@ class PortfolioDetailActivity : ComponentActivity() {
                 if (searchText.text.trim().length >= 2 && parsedStockResults.isEmpty() && apiErrorMessage == null) {
                      if(isActive) noResultsFound = true
                 }
-                if(isActive && apiErrorMessage == null) isLoading = false 
+                if(isActive && apiErrorMessage == null) isLoading = false
                 return@LaunchedEffect
             }
             
             if (isActive) {
-                 if (apiErrorMessage == null) isLoading = true 
+                 if (apiErrorMessage == null) isLoading = true
             }
 
             try {
@@ -914,7 +923,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                         if (isActive) {
                             parsedStockResults = results
                             if (results.isEmpty()) noResultsFound = true else noResultsFound = false
-                             apiErrorMessage = null 
+                             apiErrorMessage = null
                         }
                     }
                 }
@@ -974,12 +983,12 @@ class PortfolioDetailActivity : ComponentActivity() {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                 shape = MaterialTheme.shapes.large,
                 trailingIcon = if (searchText.text.isNotEmpty()) {
-                        { IconButton(onClick = { 
-                            searchText = TextFieldValue("") 
+                        { IconButton(onClick = {
+                            searchText = TextFieldValue("")
                             parsedStockResults = emptyList()
                             noResultsFound = false
                             apiErrorMessage = null
-                            symbolNamesFound = emptyList() 
+                            symbolNamesFound = emptyList()
                         }) { Icon(Icons.Filled.Clear, stringResource(R.string.clear_button_description)) } }
                     } else null
             )
@@ -1006,7 +1015,7 @@ class PortfolioDetailActivity : ComponentActivity() {
                 parsedStockResults.isNotEmpty() -> {
                     LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
                         items(parsedStockResults) { stockInfo ->
-                            Log.d("SearchBottomSheet", "StockInfo for item: $stockInfo") 
+                            Log.d("SearchBottomSheet", "StockInfo for item: $stockInfo")
                             StockResultItem(stockInfo = stockInfo, onClick = {
                                 onStockSelected(
                                     stockInfo["stockSymbol"] ?: "",
