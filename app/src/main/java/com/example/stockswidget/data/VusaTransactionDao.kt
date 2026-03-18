@@ -15,8 +15,13 @@ interface VusaTransactionDao {
     @Update
     suspend fun updateTransaction(transaction: VusaTransaction)
 
+    // Modified to fetch transactions for a specific portfolio
+    @Query("SELECT * FROM vusa_transactions WHERE portfolioName = :portfolioName ORDER BY transactionTimestamp DESC")
+    fun getTransactionsForPortfolio(portfolioName: String): Flow<List<VusaTransaction>>
+
+    // Kept for potential use if you need all transactions across all portfolios, otherwise can be removed.
     @Query("SELECT * FROM vusa_transactions ORDER BY transactionTimestamp DESC")
-    fun getAllTransactions(): Flow<List<VusaTransaction>>
+    fun getAllTransactions_UNFILTERED(): Flow<List<VusaTransaction>> // Renamed for clarity
 
     @Query("SELECT * FROM vusa_transactions WHERE id = :id")
     suspend fun getTransactionById(id: Int): VusaTransaction?
